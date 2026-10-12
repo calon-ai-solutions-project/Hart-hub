@@ -1,0 +1,52 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# django
+db.sqlite3
+backend/media/
+backend/staticfiles/
+
+# environment and secrets (secrets live in Railway variables and the vault)
+.env
+.env.*
+!.env.example
+
+# sync runner: saved platform sessions, scraped exports, logs
+sync-runner/sessions/
+sync-runner/export_data/
+sync-runner/logs/
+*_session.json
+*.log
+playwright-report/
+test-results/
+
+# anything that could hold real vehicle or customer data
+*.csv
+*.xlsx
+exports/
+uploads/
+recordings/
+
+# internal Calon material must never enter the client repo
+internal/
+**/developer-spec*
+
+# node (web portal, later)
+node_modules/
+dist/
+build/
+
+# editor and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json

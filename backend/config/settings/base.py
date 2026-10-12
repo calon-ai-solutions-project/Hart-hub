@@ -1,0 +1,184 @@
+"""Settings shared by every environment. Secrets come from environment variables only."""
+
+from pathlib import Path
+
+import environ
+from celery.schedules import crontab
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+env = environ.Env()
+# backend/.env is for local development only; Railway injects real variables.
+if (BASE_DIR / ".env").exists():
+    environ.Env.read_env(BASE_DIR / ".env")
+
+SECRET_KEY = env("SECRET_KEY")
+DEBUG = False
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
+ADMIN_URL = env("ADMIN_URL", default="admin/")
+
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "apps.core",
+    "apps.accounts",
+    "apps.listings",
+    "apps.sourcing",
+]
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+WSGI_APPLICATION = "config.wsgi.application"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+# ---------------------------------------------------------------- database
+
+if env("DATABASE_URL", default=""):
+    DATABASES = {"default": env.db("DATABASE_URL")}
+    DATABASES["default"]["CONN_MAX_AGE"] = 60
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+else:
+    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+AUTH_USER_MODEL = "accounts.User"
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# ---------------------------------------------------------------- time
+
+# Stored UTC; displayed and scheduled in Europe/London.
+LANGUAGE_CODE = "en-gb"
+TIME_ZONE = "UTC"
+USE_I18N = False
+USE_TZ = True
+UK_TIME_ZONE = "Europe/London"
+
+# ---------------------------------------------------------------- files
+
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+S3_BUCKET = env("S3_BUCKET", default="")
+if S3_BUCKET:
+    _default_storage = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": S3_BUCKET,
+            "endpoint_url": env("S3_ENDPOINT", default=None),
+            "access_key": env("S3_KEY"),
+            "secret_key": env("S3_SECRET"),
+            "region_name": env("S3_REGION", default=None),
+            "default_acl": "private",
+            "querystring_auth": True,
+            "querystring_expire": 3600,
+            "file_overwrite": True,
+        },
+    }
+else:
+    _default_storage = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+
+STORAGES = {
+    "default": _default_storage,
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+# Sync records carry every scraped field, so allow bodies larger than Django's 2.5 MB default.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+PHOTO_MAX_BYTES = 10 * 1024 * 1024
+THUMBNAIL_PX = 480
+
+# ---------------------------------------------------------------- cache and jobs
+
+REDIS_URL = env("REDIS_URL", default="")
+if REDIS_URL:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}}
+else:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL  # no broker: run jobs inline
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TIMEZONE = UK_TIME_ZONE
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BEAT_SCHEDULE = {
+    "prepare-due-syncs": {"task": "sourcing.prepare_due_syncs", "schedule": crontab(minute="*/5")},
+    "expire-listings": {"task": "listings.expire_listings", "schedule": crontab(minute="*/15")},
+}
+
+# ---------------------------------------------------------------- api
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {"alerts_inbound": "60/min", "sync": "600/min"},
+}
+
+# ---------------------------------------------------------------- platform sync (contract Schedule 1)
+
+# A platform syncs only when its switch is on (written client approval).
+SYNC_ENABLED = {
+    platform: env.bool(f"SYNC_ENABLED_{platform.upper()}", default=False)
+    for platform in ("motorway", "carwow", "bca", "manheim")
+}
+SYNC_DELAY_MS = env.int("SYNC_DELAY_MS", default=4000)
+SYNC_STALE_RUN_HOURS = 6
+
+# Shared secret for the inbound alert-email webhook.
+ALERT_INBOUND_TOKEN = env("ALERT_INBOUND_TOKEN", default="")
+
+# Who is told when a platform stops a run.
+OPS_ALERT_EMAILS = env.list("OPS_ALERT_EMAILS", default=[])
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="hub@localhost")
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+}
