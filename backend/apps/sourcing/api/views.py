@@ -8,8 +8,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.ai.client import embeddings_enabled
 from apps.core.services import get_setting
 from apps.listings.models import Listing
+from apps.listings.services.embedding import embed_pending
 from apps.listings.services.expiry import expire_listings
 from apps.listings.services.photos import InvalidPhoto, missing_positions, store_photo
 from apps.listings.tasks import make_thumbnail
@@ -169,6 +171,14 @@ class ScrapedPhotoView(RunnerView):
         return Response({"stored": True, "position": photo.position}, status=status.HTTP_201_CREATED)
 
 
+class EmbedListingsView(RunnerView):
+    """Give waiting cars their search vector. The runner calls this after a scrape until none wait."""
+
+    def post(self, request):
+        done, waiting = embed_pending()
+        return Response({"embedded": done, "waiting": waiting, "enabled": embeddings_enabled()})
+
+
 class FinishRunView(RunnerView):
     def post(self, request, run_id):
         serializer = FinishRunSerializer(data=request.data)
@@ -176,4 +186,5 @@ class FinishRunView(RunnerView):
         run = get_object_or_404(SyncRun, pk=run_id)
         run = runs.finish_run(run, serializer.validated_data["status"],
                               serializer.validated_data.get("stop_reason", ""))
+        embed_pending()  # cars this run changed get their search vector straight away
         return Response({"id": run.id, "status": run.status, "listings_captured": run.listings_captured})

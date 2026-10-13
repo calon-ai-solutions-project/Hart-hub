@@ -9,6 +9,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# the browser the Codeweavers quote connector drives, in a place the app user can read
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium
+
 COPY . .
 
 # Build-time only values so collectstatic can load settings; real ones come from Railway variables.

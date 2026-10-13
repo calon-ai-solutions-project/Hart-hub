@@ -5,6 +5,9 @@ os.environ["SECRET_KEY"] = "test-only"
 os.environ["DATABASE_URL"] = ""
 os.environ["REDIS_URL"] = ""
 os.environ["S3_BUCKET"] = ""
+for _name in ("OPENROUTER_API_KEY", "OPENROUTER_MODEL", "OPENROUTER_EMBEDDING_MODEL", "CODEWEAVERS_LOGIN_URL",
+              "CODEWEAVERS_USERNAME", "CODEWEAVERS_PASSWORD"):
+    os.environ[_name] = ""
 
 from .base import *  # noqa: E402,F401,F403
 

@@ -8,6 +8,7 @@ urlpatterns = [
     path("scrape/settings", views.ScrapeSettingsView.as_view(), name="scrape-settings"),
     path("scrape/listings", views.ScrapedListingView.as_view(), name="scrape-listing"),
     path("scrape/photos", views.ScrapedPhotoView.as_view(), name="scrape-photo"),
+    path("listings/embed", views.EmbedListingsView.as_view(), name="listings-embed"),
     path("sync/next", views.NextRunView.as_view(), name="sync-next"),
     path("sync/runs/<uuid:run_id>/start", views.StartRunView.as_view(), name="sync-run-start"),
     path("sync/runs/<uuid:run_id>/urls", views.RunUrlView.as_view(), name="sync-run-url"),

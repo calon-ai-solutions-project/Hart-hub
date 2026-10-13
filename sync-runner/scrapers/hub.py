@@ -42,6 +42,10 @@ class HubClient:
         """{"max_mileage": int, "min_year": int} - the filters set in the hub."""
         return self._call("GET", "/api/scrape/settings")
 
+    def embed_listings(self):
+        """Ask the hub to build search vectors for waiting cars: {"embedded", "waiting", "enabled"}."""
+        return self._call("POST", "/api/listings/embed")
+
     def next_run(self, platform):
         """(run, reason): today's run ({id, urls, delay_ms, ...}), or None and why there is none."""
         answer = self._call("GET", "/api/sync/next", params={"platform": platform})

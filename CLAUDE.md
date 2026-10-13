@@ -49,7 +49,7 @@ If behaviour changes, update the workflow doc in `docs/` and the developer spec 
 - Money: integer pence. Times: stored UTC, displayed and scheduled in `Europe/London`. IDs: UUID.
 - Phones: E.164.
 - Every meaningful change writes an event to the append-only `events` table.
-- Every AI call goes through one metered client (`backend/apps/ai`, to be built) (logs model, prompt version and
+- Every AI call goes through the one metered client in `backend/apps/ai` (logs model, prompt version and
   cost to `ai_usage`). Prompts are versioned files with eval sets.
 - Settings and defaults (prep cost, gone-quiet days, reminders and so on) are rows in `settings`,
   never hard-coded.
@@ -58,10 +58,10 @@ If behaviour changes, update the workflow doc in `docs/` and the developer spec 
 ## Stack
 
 Python 3.12, Django 5.2 + Django REST Framework. Jobs: Celery + Redis (worker and beat in one
-service). DB: PostgreSQL 16 on Railway EU region (pgvector to be added with matching).
+service). DB: PostgreSQL 16 + pgvector on Railway EU region.
 Storage: S3-compatible bucket. Sync runner: Python (requests + Playwright) on a dedicated Calon
-machine (not Railway), using the saved logged-in sessions. Web portal (later): React + Vite PWA.
-AI (later): OpenRouter + embeddings model + image model.
+machine (not Railway), using the saved logged-in sessions. Web portal: React + Vite in `web/` (session cookie + CSRF, same origin as the API).
+AI: OpenRouter (chat model + embeddings model); image model later.
 
 ## Repository layout
 
@@ -71,6 +71,11 @@ backend/apps/core               base models, events, settings rows, UK time help
 backend/apps/accounts           staff users and roles
 backend/apps/listings           listings, photos, pricing, expiry
 backend/apps/sourcing           alerts, sync runs and log, platform definitions, normalisers, sync API
+backend/apps/ai                 the one metered AI client and the ai_usage log
+backend/apps/matching           requirements, parsing, hard filters, ranking, option cards
+backend/apps/chat               staff chatbot: conversations and API (the page is in web/)
+backend/apps/quotes             Codeweavers finance quotes (Showroom driven in a headless browser)
+web/                            React + Vite frontend (staff chatbot); talks only to the backend API
 sync-runner/run_sync.py         the daily sync loop
 sync-runner/scrapers            sync guard, hub client, per-platform collectors, page parsers, login scripts
 docs/                           workflow documents

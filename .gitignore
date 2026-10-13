@@ -50,3 +50,6 @@ build/
 .DS_Store
 Thumbs.db
 .claude/settings.local.json
+
+# Codeweavers browser session and debug screenshots
+backend/.codeweavers/

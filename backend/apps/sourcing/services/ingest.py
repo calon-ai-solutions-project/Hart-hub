@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from apps.core.services import emit_event
 from apps.listings.models import Listing
+from apps.listings.services.embedding import mark_if_changed
 from apps.listings.services.expiry import status_for
 from apps.listings.services.photos import sync_photo_rows
 from apps.listings.services.pricing import price_listing
@@ -58,6 +59,7 @@ def upsert_listing(platform, record, *, url="", external_id="", run=None, source
         listing.save()
         sync_photo_rows(listing, photos)
         listing.save(update_fields=["photo_count"])
+        mark_if_changed(listing)  # its search vector is redone if the description changed
         emit_event("listing.upserted", {
             "listing_id": str(listing.id), "platform": platform, "external_id": external_id,
             "created": created, "run_id": str(run.id) if run else None,

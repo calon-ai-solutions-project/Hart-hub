@@ -5,7 +5,7 @@ from django.utils.autoreload import autoreload_started
 
 def watch_env_file(sender, **kwargs):
     """Restart the dev server when backend/.env is edited, like it does for code."""
-    sender.watch_file(settings.BASE_DIR / ".env")
+    sender.extra_files.add(settings.BASE_DIR / ".env")
 
 
 class CoreConfig(AppConfig):

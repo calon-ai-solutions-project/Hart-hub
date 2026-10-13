@@ -157,6 +157,22 @@ def main():
             upload(hub, platform, cars, not args.no_images, log)
         except HubError as e:
             log(f"{platform}: {e}")
+    index_for_search(hub, log)
+
+
+def index_for_search(hub, log):
+    """The chatbot ranks cars by vector similarity, so every stored car needs its vector."""
+    try:
+        total = 0
+        while True:
+            answer = hub.embed_listings()
+            total += answer["embedded"]
+            if not answer["enabled"] or not answer["embedded"] or not answer["waiting"]:
+                break
+        if answer["enabled"]:
+            log(f"search index: {total} cars indexed, {answer['waiting']} waiting")
+    except HubError as e:
+        log(f"search index: {e}")
 
 
 if __name__ == "__main__":

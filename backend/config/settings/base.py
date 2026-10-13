@@ -29,6 +29,10 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.listings",
     "apps.sourcing",
+    "apps.ai",
+    "apps.matching",
+    "apps.chat",
+    "apps.quotes",
 ]
 
 MIDDLEWARE = [
@@ -92,7 +96,7 @@ UK_TIME_ZONE = "Europe/London"
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 S3_BUCKET = env("S3_BUCKET", default="")
@@ -141,6 +145,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULE = {
     "prepare-due-syncs": {"task": "sourcing.prepare_due_syncs", "schedule": crontab(minute="*/5")},
     "expire-listings": {"task": "listings.expire_listings", "schedule": crontab(minute="*/15")},
+    "embed-listings": {"task": "listings.embed_pending", "schedule": crontab(minute="*/5")},
 }
 
 # ---------------------------------------------------------------- api
@@ -154,8 +159,31 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"alerts_inbound": "60/min", "sync": "600/min"},
+    "DEFAULT_THROTTLE_RATES": {"alerts_inbound": "60/min", "sync": "600/min", "chat": "120/min", "login": "10/min"},
 }
+
+# ---------------------------------------------------------------- ai
+
+# The chatbot uses AI only when both are set; without them it falls back to rule-based matching.
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
+OPENROUTER_MODEL = env("OPENROUTER_MODEL", default="")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Vector search is on only when the key and this model are set. Changing the model means
+# re-embedding every car, and a model with a different vector length needs a migration.
+OPENROUTER_EMBEDDING_MODEL = env("OPENROUTER_EMBEDDING_MODEL", default="")
+OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings"
+EMBEDDING_DIMENSIONS = 1536
+EMBEDDING_BATCH = 64
+AI_TIMEOUT_SECONDS = 30
+AI_MAX_OUTPUT_TOKENS = 600  # answers are small JSON objects
+
+# ---------------------------------------------------------------- codeweavers (finance quotes)
+
+# The Showroom login the Hub uses to get quotes. Codeweavers allows one session per login, so
+# give the Hub its own user: signing in signs out anyone else using the same login.
+CODEWEAVERS_LOGIN_URL = env("CODEWEAVERS_LOGIN_URL", default="")
+CODEWEAVERS_USERNAME = env("CODEWEAVERS_USERNAME", default="")
+CODEWEAVERS_PASSWORD = env("CODEWEAVERS_PASSWORD", default="")
 
 # ---------------------------------------------------------------- platform sync (contract Schedule 1)
 

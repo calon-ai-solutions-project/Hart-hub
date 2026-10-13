@@ -15,6 +15,10 @@ apps/sourcing/          alerts, sync runs, sync log, runner tokens
     normalisers/        one per platform: scraped record -> listing fields
     services/           alerts (ingest), runs (the sync rules), ingest (save a car)
     api/                the sync API used by the runner + the inbound alert webhook
+apps/ai/                the one metered AI client (OpenRouter) and the ai_usage log
+apps/matching/          requirements, parsing, hard filters, ranking, option cards
+apps/chat/              the staff chatbot: conversations and API (the page is the React app in ../web)
+apps/quotes/            Codeweavers finance quotes for chosen cars
 ```
 
 Views stay thin; rules live in `services/`. Money is integer pence, times are UTC (shown and
@@ -47,6 +51,88 @@ Rules the hub enforces, whatever the runner does:
 | Only alert listings may be opened | `SyncRun.allowlist`; anything else is refused and logged |
 | A stop ends the run, alerts the team, no retry that day | `runs.finish_run` |
 | Every URL is logged | `SyncLog` (captured, skipped, stopped, failed, refused) |
+
+## Stock chatbot
+
+The page is the React app in `../web` (`npm run dev`, then http://localhost:5173, staff login through
+`/api/auth/login`; see [web/README.md](../web/README.md)). The bot opens with the enquiry form; the answer is the five best live
+cars, each with the reason it was picked. Follow-ups such as "only black" or "any make under £15k"
+refine the same request.
+
+- A colour is a preference (other colours still show, flagged) unless the salesperson insists:
+  "only grey", "must be grey", or a message that is just the colour. Then other colours are hidden.
+- "Cheapest first", "newest", "lowest mileage" set the order; "best match first" resets it.
+- The bar above the message box shows the current filters; the x on each removes it. The chips under
+  the latest answer are one-tap next steps chosen from what was found.
+
+- Code applies the hard rules first (live, complete, priced, make and model, auto/manual, budget);
+  AI only ranks inside that shortlist and writes the one-line reason. It is never given prices and a
+  reason that mentions money is replaced.
+- AI is on only when `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are set; otherwise the same flow
+  runs on rules alone. Every AI call is logged in **AI usage**.
+- A monthly budget is turned into a price ceiling using `finance_estimate_apr_percent` and
+  `finance_estimate_term_months` (Settings). It is a filter only, never a quote; Codeweavers quotes
+  replace it in the next step.
+- **Vector search (pgvector).** With `OPENROUTER_EMBEDDING_MODEL` set, every car's description is
+  embedded into `listings_listingembedding` in the same PostgreSQL database. A request is embedded
+  too, and cars are ranked by similarity INSIDE the set that already passed the hard filters, so
+  "AMG Line" finds "AMG Line Premium" but a CLA never matches an SLK. A car is re-embedded only when
+  its description changes. New cars are indexed after each scrape and sync and every 5 minutes by the
+  worker; `python manage.py embed_listings` indexes everything waiting. Without the model, or if the
+  service is down, matching uses the rules alone.
+- Each card has a `customer` part (the only fields a customer may ever see) and a `staff` part.
+
+| Call | Purpose |
+| --- | --- |
+| `POST /api/chat/conversations` | Start a chat; returns the greeting and form |
+| `GET /api/chat/conversations` | Your chats |
+| `GET /api/chat/conversations/<id>` | One chat with its messages |
+| `DELETE /api/chat/conversations/<id>` | Delete one of your own chats and its messages |
+| `POST /api/chat/conversations/<id>/messages` | Send `{"form": {...}}` or `{"text": "..."}` |
+
+## Finance quotes (Codeweavers)
+
+In the chat, tick up to five cars, check the deposit and press **Get finance quotes**. Each quote
+appears as it arrives (about 30 to 50 seconds for the first, less for the rest).
+
+- There is no Codeweavers API access yet, so `apps/quotes/codeweavers.py` signs in to the Showroom in
+  a headless browser, looks the car up by registration, enters mileage, price, deposit and term,
+  presses calculate and reads Codeweavers' own answer. It never opens the Application tab and never
+  saves or submits anything: quotes only.
+- Every figure shown comes from Codeweavers. Nothing is calculated or estimated, and a car that
+  cannot be quoted shows "Finance quote to follow" with the reason for staff.
+- Term, extra mileage, annual mileage, product, credit rating and the wording under each quote are
+  Settings rows (`codeweavers_term_months` = 48, `codeweavers_extra_mileage` = 500,
+  `codeweavers_annual_mileage` = 8000, `codeweavers_product` = "(MotoNovo Finance) PCP",
+  `codeweavers_fallback_product` = "(MotoNovo Finance) HP",
+  `codeweavers_credit_tier`, `finance_disclaimer`).
+- **PCP first, Hire Purchase only as a fallback.** The chosen lender's PCP is tried first, then the
+  other lenders' PCP products. Only if no PCP can be quoted at the term on that car (older cars often
+  cannot have a 48-month PCP) is `codeweavers_fallback_product` = "(MotoNovo Finance) HP" quoted,
+  followed by other lenders' HP. The quote records which product was really quoted and tells staff
+  why. The term is never shortened. Empty the fallback setting to switch this off.
+- **Checked before it is kept.** The Showroom screen remembers the last car, product and term, so
+  every answer is checked against what was asked: registration, mileage, term, price, deposit and
+  annual mileage. A calculation or document for anything else is refused.
+- Where Codeweavers' document shows its grey "Image not available" box, `apps/quotes/pdf.py` puts the
+  standard no-vehicle picture there instead. Nothing else in the document is changed.
+- Each quote keeps Codeweavers' own quote document (PDF). Staff open it with **Preview PDF** on the
+  quote card or download it; only the person who asked for the quote and the owner can. To get the
+  document the quote is saved on the Hub's one proposal, so that proposal's quote history grows.
+- The same car with the same inputs is not quoted twice in a day.
+- One Showroom proposal is created once and re-used for every quote (`codeweavers_proposal_url`),
+  so the Hub does not fill Hart's proposal list.
+- Codeweavers allows one session per login. When the Hub signs in, anyone else using that login is
+  signed out, and when they sign back in the Hub is signed out until its next quote. Give the Hub
+  its own Showroom user.
+- `python manage.py codeweavers_quote "AB12 CDE" --mileage 30500 --price 14750 --deposit 2000`
+  checks the connection from the command line.
+
+| Call | Purpose |
+| --- | --- |
+| `POST /api/quotes` | `{"listing_ids": [...], "deposit": "2000", "conversation": "<id>"}`: start quotes |
+| `GET /api/quotes?ids=a,b` | How those quotes are getting on, and their figures |
+| `GET /api/quotes/<id>/pdf` | Codeweavers' quote PDF (`?download=1` to download) |
 
 ## Sync API
 
@@ -83,6 +169,7 @@ after changing `.env`. Admin is at `/admin/`: listings, sync runs with their URL
 
 ```bat
 python manage.py test --settings=config.settings.test
+python manage.py embed_listings                         :: build the search vector for every waiting car
 python manage.py seed_settings                           :: add a settings row for every default (keeps changed ones)
 python manage.py create_runner_token calon-runner-1     :: token for sync-runner/.env
 python manage.py import_export motorway ..\sync-runner\export_data\motorway_export\cars.json --images-root ..\sync-runner

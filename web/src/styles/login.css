@@ -1,0 +1,26 @@
+/* The sign-in screen, and the sign-out button in the sidebar. Same palette as app.css. */
+.login { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+.login-card { width: min(380px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 30px 28px 28px;
+              background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-md); }
+.login-brand { display: flex; align-items: center; margin: -30px -28px 6px; padding: 22px 28px; background: var(--side);
+               border-radius: var(--radius) var(--radius) 0 0; }
+.login-brand img { height: 46px; width: auto; display: block; }
+.brand { flex-direction: column; align-items: flex-start; gap: 8px; }
+.brand .logo { height: 44px; width: auto; display: block; }
+.login-brand .mark { width: 34px; height: 34px; border-radius: 2px; background: var(--ink); color: #fff; display: grid; place-items: center;
+                     font-weight: 800; font-size: 13px; letter-spacing: .04em; }
+.login-brand b { color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.login-card h1 { margin: 8px 0 0; font-family: var(--serif); font-size: 32px; font-weight: 400; letter-spacing: -.01em; color: var(--ink); line-height: 1.1; }
+.login-lead { margin: 0 0 4px; font-size: 13.5px; color: var(--muted); }
+.login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.login-card input { height: 40px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface);
+                    color: var(--ink); font-weight: 400; font-size: 14.5px; }
+.login-card input:focus { outline: 0; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(15, 14, 12, .1); }
+.login-card .btn { justify-content: center; height: 42px; margin-top: 4px; }
+.login-error { padding: 9px 12px; border-radius: var(--radius-sm); background: var(--bad-soft); color: var(--bad); font-size: 13px; }
+
+.who span[title] { flex: 1; min-width: 0; }
+.who .signout { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 4px;
+                background: transparent; color: var(--side-muted); transition: background .12s, color .12s; }
+.who .signout:hover { background: var(--side-surface); color: var(--side-ink); }
+.who .signout svg { width: 16px; height: 16px; }

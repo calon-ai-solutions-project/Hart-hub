@@ -1,8 +1,11 @@
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+from pgvector.django import VectorField
 
 from apps.core.models import TimeStampedModel, UUIDModel
+
+from .services import keys
 
 
 class Platform(models.TextChoices):
@@ -81,6 +84,11 @@ class Listing(TimeStampedModel):
     spec = models.TextField(blank=True)
     location = models.CharField(max_length=160, blank=True)
 
+    # Normalised for matching; filled on every save from the text above.
+    make_key = models.CharField(max_length=60, blank=True, db_index=True, editable=False)
+    gearbox_kind = models.CharField(max_length=10, blank=True, editable=False)
+    colour_key = models.CharField(max_length=20, blank=True, editable=False)
+
     sale_type = models.CharField(max_length=10, choices=SaleType.choices, default=SaleType.UNKNOWN)
     sale_channel = models.CharField(max_length=120, blank=True, help_text="As the platform words it")
     lot_number = models.CharField(max_length=40, blank=True)
@@ -127,12 +135,34 @@ class Listing(TimeStampedModel):
     def __str__(self):
         return f"{self.get_platform_display()} {self.registration or self.external_id} {self.title}".strip()
 
+    def save(self, *args, **kwargs):
+        self.make_key = keys.make_key(self.make)
+        self.gearbox_kind = keys.gearbox_kind(self.gearbox)
+        self.colour_key = keys.colour_key(self.colour)
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "make_key", "gearbox_kind", "colour_key"}
+        super().save(*args, **kwargs)
+
     @property
     def margin_pence(self):
         """Selling price minus buy price minus prep cost. Staff only."""
         if self.suggested_price_pence is None or self.buy_price_pence is None or self.prep_cost_pence is None:
             return None
         return self.suggested_price_pence - self.buy_price_pence - self.prep_cost_pence
+
+
+class ListingEmbedding(models.Model):
+    """The vector for a car's description (pgvector). Used only to rank cars that already passed
+    the hard filters."""
+
+    listing = models.OneToOneField(Listing, primary_key=True, on_delete=models.CASCADE, related_name="embedding_row")
+    embedding = VectorField(dimensions=1536)
+    text_hash = models.CharField(max_length=64, help_text="Of the text and model that were embedded")
+    stale = models.BooleanField(default=False, db_index=True, help_text="The car's description has changed")
+    embedded_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"embedding for {self.listing_id}"
 
 
 class ListingPhoto(UUIDModel):

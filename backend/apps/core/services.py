@@ -19,6 +19,16 @@ DEFAULTS = {
     "sync_slot_manheim": "08:30",  # to confirm from real alert times
     "scrape_max_mileage": 80000,
     "scrape_min_year": 2016,
+    "finance_estimate_apr_percent": 12.9,
+    "finance_estimate_term_months": 48,
+    "chat_over_budget_percent": 15,
+    "codeweavers_term_months": 48,
+    "codeweavers_extra_mileage": 500,
+    "codeweavers_annual_mileage": 8000,
+    "codeweavers_product": "(MotoNovo Finance) PCP",
+    "codeweavers_fallback_product": "(MotoNovo Finance) HP",
+    "codeweavers_credit_tier": "Excellent",
+    "finance_disclaimer": "Finance is subject to status. Terms and conditions apply.",
 }
 
 DESCRIPTIONS = {
@@ -31,6 +41,20 @@ DESCRIPTIONS = {
     "sync_slot_manheim": "Daily sync time for Manheim, UK time, HH:MM. The sync will not run before it.",
     "scrape_max_mileage": "The scrape command only collects cars with this mileage or less.",
     "scrape_min_year": "The scrape command only collects cars registered in this year or newer.",
+    "finance_estimate_apr_percent": "Chatbot only: APR assumed when turning a monthly budget into a price "
+                                    "ceiling. A rough guide for filtering, never a quote.",
+    "finance_estimate_term_months": "Chatbot only: finance term assumed for the same price ceiling.",
+    "chat_over_budget_percent": "When nothing fits the budget, the chatbot may show cars up to this much over.",
+    "codeweavers_term_months": "Finance term used for every Codeweavers quote, in months.",
+    "codeweavers_extra_mileage": "Miles added to a car's mileage when it is quoted (delivery and test drives).",
+    "codeweavers_annual_mileage": "Annual Mileage chosen on every quote. Codeweavers only asks for it on "
+                                  "mileage-based products such as PCP; Hire Purchase has no such field.",
+    "codeweavers_product": "The Codeweavers product to quote, as worded in the Showroom product list. If that "
+                           "lender does not offer it on a car, another lender's product of the same kind is tried.",
+    "codeweavers_fallback_product": "Quoted when no product of the first kind (PCP) is available at the term on a "
+                                    "car. Leave empty for no fallback.",
+    "codeweavers_credit_tier": "Customer credit rating used for quotes: Excellent, Very Good, Good or Fair.",
+    "finance_disclaimer": "Wording shown under every finance quote. Must be approved by Hart before customers see it.",
 }
 
 
