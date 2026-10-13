@@ -34,6 +34,7 @@ export default function QuoteList({ ids, onPreview }) {
 
   if (failed) return <div className="bubble">Could not load the quotes. Reopen this chat to try again.</div>;
   if (!quotes) return null;
+  if (!quotes.length) return <div className="bubble">These quotes are no longer available. Request them again.</div>;
   return (
     <div className="cards results">
       {quotes.map((quote) => (

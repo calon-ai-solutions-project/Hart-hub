@@ -241,6 +241,14 @@ class QuoteRulesTests(TestCase):
         self.assertNotEqual(changed.pk, first.pk)
         self.assertEqual(len(self.seen), 2)
 
+    def test_another_persons_quote_is_not_reused(self):
+        listing = car(1)
+        (first,) = self.quote(listing)
+        colleague = User.objects.create_user("colleague@example.com", "a-long-password")
+        (theirs,) = services.request_quotes(colleague, [listing.id], 200000)
+        self.assertNotEqual(theirs.pk, first.pk)  # each person can open only their own quote
+        self.assertEqual((theirs.requested_by, len(self.seen)), (colleague, 2))
+
     def test_cars_that_cannot_be_quoted(self):
         with self.assertRaisesMessage(services.CannotQuote, "at least one"):
             services.request_quotes(self.user, [])

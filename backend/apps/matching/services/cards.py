@@ -1,6 +1,6 @@
 """Option cards. A customer only ever receives `customer_card`; staff fields live in `staff_card`."""
 
-from django.core.files.storage import default_storage
+from django.conf import settings
 from django.utils import timezone
 
 from apps.core.services import uk_now
@@ -41,7 +41,8 @@ def customer_card(listing, now=None):
         "body": listing.body,
         "spec": listing.spec[:300],
         "price_pence": listing.suggested_price_pence,
-        "photo": default_storage.url(listing.cover_thumbnail) if listing.cover_thumbnail else "",
+        # a fixed address (apps/listings/views.py), so cards saved in a chat keep their photo
+        "photo": f"{settings.MEDIA_URL}{listing.cover_thumbnail}" if listing.cover_thumbnail else "",
         "photo_count": listing.photo_count,
         "available_until": available_until(listing, now),
         "ends_at": listing.ends_at.isoformat() if listing.ends_at else None,  # the platform's end time, UTC

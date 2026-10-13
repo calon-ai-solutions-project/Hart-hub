@@ -112,6 +112,8 @@ if S3_BUCKET:
             "default_acl": "private",
             "querystring_auth": True,
             "querystring_expire": 3600,
+            "signature_version": "s3v4",
+            "addressing_style": env("S3_ADDRESSING_STYLE", default=None),  # "virtual" or "path" if the host needs it
             "file_overwrite": True,
         },
     }

@@ -4,6 +4,8 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
+from apps.listings.views import listing_photo
+
 
 def healthz(request):
     return JsonResponse({"status": "ok"})
@@ -19,3 +21,5 @@ urlpatterns = [
 ]
 if settings.DEBUG:  # local development only: photos come from backend/media
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:  # car photos for signed-in staff, from the bucket
+    urlpatterns.append(path("media/listings/<path:name>", listing_photo))

@@ -122,7 +122,7 @@ appears as it arrives (about 30 to 50 seconds for the first, less for the rest).
 - Each quote keeps Codeweavers' own quote document (PDF). Staff open it with **Preview PDF** on the
   quote card or download it; only the person who asked for the quote and the owner can. To get the
   document the quote is saved on the Hub's one proposal, so that proposal's quote history grows.
-- The same car with the same inputs is not quoted twice in a day.
+- The same car with the same inputs is not quoted twice in a day for the same person.
 - One Showroom proposal is created once and re-used for every quote (`codeweavers_proposal_url`),
   so the Hub does not fill Hart's proposal list.
 - Codeweavers allows one session per login. When the Hub signs in, anyone else using that login is
@@ -191,6 +191,11 @@ One project, EU region, four services. Set each code service's root directory to
 | worker | `railway.worker.json` | Celery worker + beat (keep at one replica: beat must not run twice) |
 | Postgres | Railway plugin | set `DATABASE_URL` on web and worker |
 | Redis | Railway plugin | set `REDIS_URL` on web and worker |
+
+**Photos and quote documents** live in the bucket (`S3_*`). Cards point at `/media/listings/...`, a
+fixed address that `apps/listings/views.py` forwards to a short-lived signed link for signed-in staff,
+so cards saved in a chat keep their photo. `python manage.py upload_media`, run once on a machine that
+has `backend/media` with the `S3_*` variables set, copies the existing files to the bucket.
 
 Variables for web and worker: see `.env.example`. `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS` are
 required; add a bucket (`S3_*`) before the first real sync, because a Railway container's disk is

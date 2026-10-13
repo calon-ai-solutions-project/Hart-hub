@@ -52,7 +52,7 @@ def request_quotes(user, listing_ids, deposit_pence=0, conversation=None):
     """Ask Codeweavers for a quote on each chosen car. Returns the Quote rows straight away;
     the quotes themselves arrive in the background.
 
-    A car quoted today with exactly the same inputs is not quoted again.
+    A car the same person quoted today with exactly the same inputs is not quoted again.
     """
     listing_ids = list(dict.fromkeys(listing_ids))
     if not listing_ids:
@@ -80,8 +80,11 @@ def request_quotes(user, listing_ids, deposit_pence=0, conversation=None):
                 error="This car has no registration, so Codeweavers cannot look it up.",
                 finished_at=timezone.now(), **inputs))
             continue
-        same_today = [q for q in Quote.objects.filter(listing=listing, status=Quote.Status.DONE, **inputs)[:5]
-                      if uk_date(q.created_at) == uk_date() and q.pdf]  # one without its document is fetched again
+        # the person's own quote from today is re-used; someone else's is not, because a quote and its
+        # document can only be opened by whoever asked for it (one without its document is fetched again)
+        same_today = [q for q in Quote.objects.filter(listing=listing, requested_by=user, status=Quote.Status.DONE,
+                                                      **inputs)[:5]
+                      if uk_date(q.created_at) == uk_date() and q.pdf]
         if same_today:
             quotes.append(same_today[0])
             continue
