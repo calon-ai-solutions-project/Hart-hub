@@ -4,7 +4,7 @@ import useChat, { MAX_PICKS } from "../hooks/useChat.js";
 import { ConfirmDelete, PdfViewer, Toast } from "./Dialogs.jsx";
 import { Composer, FilterBar, SelectionBar } from "./Dock.jsx";
 import Icon from "./Icon.jsx";
-import Message, { TypingRow } from "./Message.jsx";
+import Message, { ThreadLoading, TypingRow } from "./Message.jsx";
 import Sidebar from "./Sidebar.jsx";
 
 const TOAST_MS = 2600;
@@ -109,10 +109,12 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
             >
               <Icon name="trash" />
             </button>
+            {(chat.busy || chat.loading) && <div className="progress" aria-hidden="true" />}
           </header>
 
           <div className="thread" id="scroller" ref={scroller}>
             <div className="thread-inner" id="thread" aria-live="polite" key={chat.current?.id}>
+              {chat.loading && chat.messages.length === 0 && <ThreadLoading />}
               {chat.messages.map((message, index) => (
                 <Message
                   key={message.id || index}
@@ -124,7 +126,7 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
                   onPreview={setPreviewing}
                 />
               ))}
-              {chat.typing && <TypingRow />}
+              {chat.typing && <TypingRow label={chat.typing} />}
             </div>
           </div>
 

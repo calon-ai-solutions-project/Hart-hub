@@ -57,16 +57,30 @@ export default function Message({ message, latest, picked, onTogglePick, onSend,
   );
 }
 
-export function TypingRow() {
+/** The assistant is working: three dots and what it is doing. */
+export function TypingRow({ label }) {
   return (
-    <div className="row bot" id="typing">
-      <div className="bubble">
+    <div className="row bot" id="typing" role="status">
+      <div className="bubble working">
         <span className="typing">
           <i />
           <i />
           <i />
         </span>
+        {label && <span className="working-label">{label}…</span>}
       </div>
+    </div>
+  );
+}
+
+/** Placeholder rows while a chat is being opened. */
+export function ThreadLoading() {
+  return (
+    <div className="thread-loading" role="status" aria-label="Loading the chat">
+      <div className="skeleton short" />
+      <div className="skeleton tall" />
+      <div className="skeleton right" />
+      <div className="skeleton" />
     </div>
   );
 }

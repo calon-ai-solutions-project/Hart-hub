@@ -14,7 +14,8 @@ export default function useChat(notify, startFresh = false) {
   const [messages, setMessages] = useState([]);
   const [picked, setPicked] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(""); // what the assistant is doing right now, in words
+  const [loading, setLoading] = useState(true); // a chat is being opened
   // The deposit box follows the enquiry form. Staff can type over it for one quote; it follows the
   // form again as soon as the form's deposit changes.
   const [deposit, setDeposit] = useState({ form: null, value: "", edited: false });
@@ -43,20 +44,26 @@ export default function useChat(notify, startFresh = false) {
 
   const open = useCallback(
     async (id) => {
+      setLoading(true);
       try {
         show(await chatsApi.get(id));
       } catch (error) {
         notify(error.message);
+      } finally {
+        setLoading(false);
       }
     },
     [show, notify],
   );
 
   const startNew = useCallback(async () => {
+    setLoading(true);
     try {
       show(await chatsApi.create());
     } catch (error) {
       notify(error.message);
+    } finally {
+      setLoading(false);
     }
   }, [show, notify]);
 
@@ -74,6 +81,8 @@ export default function useChat(notify, startFresh = false) {
         show(conversation);
       } catch (error) {
         notify(error.message);
+      } finally {
+        setLoading(false);
       }
     })();
   }, [show, notify, startFresh]);
@@ -84,7 +93,7 @@ export default function useChat(notify, startFresh = false) {
       if (working.current || !current) return;
       working.current = true;
       setBusy(true);
-      setTyping(true);
+      setTyping(body.remove ? "Updating the search" : "Searching the stock");
       try {
         const answer = await chatsApi.send(current.id, body);
         setMessages((now) => [...now, ...answer.messages]);
@@ -95,7 +104,7 @@ export default function useChat(notify, startFresh = false) {
         setMessages((now) => [...now, botSays(error.message)]);
       } finally {
         working.current = false;
-        setTyping(false);
+        setTyping("");
         setBusy(false);
       }
     },
@@ -123,6 +132,7 @@ export default function useChat(notify, startFresh = false) {
     if (working.current || !current || !picked.size) return;
     working.current = true;
     setBusy(true);
+    setTyping("Sending the cars to Codeweavers");
     try {
       // an untouched box sends nothing, so the server uses the form's deposit; a typed one (even "0") wins
       const amount = deposit.edited ? deposit.value.trim() || "0" : "";
@@ -134,6 +144,7 @@ export default function useChat(notify, startFresh = false) {
       setMessages((now) => [...now, botSays(error.message)]);
     } finally {
       working.current = false;
+      setTyping("");
       setBusy(false);
     }
   }, [current, picked, deposit, refreshList]);
@@ -165,7 +176,7 @@ export default function useChat(notify, startFresh = false) {
       : "(none given in the form)";
 
   return {
-    chats, current, messages, picked, busy, typing, filters,
+    chats, current, messages, picked, busy, typing, loading, filters,
     deposit: deposit.value, depositSource,
     open, startNew, send, togglePick, clearPicks, editDeposit, getQuotes, remove,
   };

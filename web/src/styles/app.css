@@ -318,4 +318,23 @@ dialog.viewer[open] { display: flex; flex-direction: column; }
 .chips button:nth-child(4) { animation-delay: .62s; } .chips button:nth-child(n+5) { animation-delay: .66s; }
 .selection, .filter { animation: slide-up .24s cubic-bezier(.2, .7, .2, 1) backwards; }
 
+/* ------------------------------------------------ loading: the backend is working */
+.top { position: relative; }
+.progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; background: var(--line); }
+.progress::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 34%; background: var(--green); animation: progress 1.1s ease-in-out infinite; }
+@keyframes progress { from { translate: -100% 0; } to { translate: 300% 0; } }
+.bubble.working { display: inline-flex; align-items: center; gap: 10px; }
+.working-label { color: var(--muted); font-size: 13.5px; }
+.spinner { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
+           animation: spin .7s linear infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+.send:disabled { opacity: 1; background: var(--accent-hover); }
+.thread-loading { display: flex; flex-direction: column; gap: 18px; padding-left: 44px; }
+.skeleton { height: 46px; width: min(420px, 70%); border-radius: var(--radius); border: 1px solid var(--line);
+            background: linear-gradient(100deg, var(--sunken) 30%, var(--surface) 50%, var(--sunken) 70%) 0 0 / 300% 100%;
+            animation: shimmer 1.3s linear infinite; }
+.skeleton.short { width: min(260px, 50%); } .skeleton.tall { height: 150px; width: min(760px, 100%); }
+.skeleton.right { align-self: flex-end; width: min(240px, 45%); }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

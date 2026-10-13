@@ -30,7 +30,8 @@ export function SelectionBar({ count, max, deposit, depositSource, term, busy, o
         Clear
       </button>
       <button type="button" className="btn primary small" id="get-quotes" disabled={busy} onClick={onQuote}>
-        Get finance quotes
+        {busy && <span className="spinner" />}
+        {busy ? "Working…" : "Get finance quotes"}
       </button>
     </div>
   );
@@ -97,7 +98,7 @@ export function Composer({ busy, onSend }) {
         }}
       />
       <button className="send" id="send" aria-label="Send" disabled={busy}>
-        <Icon name="send" />
+        {busy ? <span className="spinner" /> : <Icon name="send" />}
       </button>
     </form>
   );
