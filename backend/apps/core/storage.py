@@ -5,7 +5,8 @@ A file keeps the same name it would have on disk, for example
 
 - Photos are Cloudinary images with a public address: they are not secret and end up on customer cards.
 - Anything else (quote PDFs) is stored as an "authenticated" raw file: it has no public address and is
-  only ever read through the Hub, which signs the request.
+  only ever read through the Hub. It is fetched with Cloudinary's signed download API, because
+  Cloudinary does not deliver PDF files through its ordinary links.
 """
 
 import cloudinary
@@ -47,9 +48,10 @@ class CloudinaryStorage(Storage):
 
     def url(self, name):
         public_id, resource_type, delivery, image_format = target(name)
+        if delivery != "upload":  # private: a signed API link that works for an hour
+            return cloudinary.utils.private_download_url(public_id, "", resource_type=resource_type, type=delivery)
         address, _ = cloudinary.utils.cloudinary_url(
-            public_id, resource_type=resource_type, type=delivery, format=image_format, secure=True,
-            sign_url=delivery != "upload")
+            public_id, resource_type=resource_type, type=delivery, format=image_format, secure=True)
         return address
 
     def _open(self, name, mode="rb"):
@@ -60,11 +62,13 @@ class CloudinaryStorage(Storage):
         return ContentFile(response.content, name=name)
 
     def exists(self, name):
-        return requests.head(self.url(name), timeout=TIMEOUT).status_code == 200
+        with requests.get(self.url(name), timeout=TIMEOUT, stream=True) as response:  # the API link has no HEAD
+            return response.status_code == 200
 
     def delete(self, name):
         public_id, resource_type, delivery, _ = target(name)
         cloudinary.uploader.destroy(public_id, resource_type=resource_type, type=delivery, invalidate=True)
 
     def size(self, name):
-        return int(requests.head(self.url(name), timeout=TIMEOUT).headers.get("content-length", 0))
+        with requests.get(self.url(name), timeout=TIMEOUT, stream=True) as response:
+            return int(response.headers.get("content-length", 0))

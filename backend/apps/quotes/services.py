@@ -84,7 +84,7 @@ def request_quotes(user, listing_ids, deposit_pence=0, conversation=None):
         # document can only be opened by whoever asked for it (one without its document is fetched again)
         same_today = [q for q in Quote.objects.filter(listing=listing, requested_by=user, status=Quote.Status.DONE,
                                                       **inputs)[:5]
-                      if uk_date(q.created_at) == uk_date() and q.pdf]
+                      if uk_date(q.created_at) == uk_date() and has_document(q)]
         if same_today:
             quotes.append(same_today[0])
             continue
@@ -94,6 +94,15 @@ def request_quotes(user, listing_ids, deposit_pence=0, conversation=None):
     if to_run:
         start_run(to_run)
     return quotes
+
+
+def has_document(quote):
+    """Is the quote's PDF really in storage? A lost file means the quote is fetched again."""
+    try:
+        return bool(quote.pdf) and quote.pdf.storage.exists(quote.pdf.name)
+    except Exception:
+        logger.warning("Could not check the document of quote %s", quote.id, exc_info=True)
+        return False
 
 
 def start_run(quote_ids):

@@ -23,9 +23,10 @@ class CloudinaryStorageTests(SimpleTestCase):
     def test_addresses(self):
         self.assertEqual(self.storage.url(PHOTO),
                          "https://res.cloudinary.com/demo-cloud/image/upload/v1/listings/motorway/30000004/thumbs/01.webp")
-        document = self.storage.url(PDF)
-        self.assertIn("/raw/authenticated/s--", document)  # signed: no public address
-        self.assertTrue(document.endswith(PDF))
+        document = self.storage.url(PDF)  # no public address: a signed link to the download API
+        self.assertTrue(document.startswith("https://api.cloudinary.com/v1_1/demo-cloud/raw/download?"))
+        self.assertIn("signature=", document)
+        self.assertIn("type=authenticated", document)
 
     def test_saving_replaces_the_file_at_its_fixed_name(self):
         with mock.patch("cloudinary.uploader.upload") as upload:

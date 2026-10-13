@@ -40,6 +40,17 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
     if (hasPicks && node.scrollHeight - node.scrollTop - node.clientHeight < 160) node.scrollTop = node.scrollHeight;
   }, [hasPicks]);
 
+  // check the document is really there before opening the viewer, so a lost file gives a clear message
+  async function preview(quote) {
+    try {
+      const answer = await fetch(quote.pdf_url, { credentials: "same-origin" });
+      if (!answer.ok) throw new Error("missing");
+      setPreviewing(quote);
+    } catch {
+      notify("This quote's document is no longer stored. Request the quote again.");
+    }
+  }
+
   async function confirmDelete() {
     setDeleteBusy(true);
     try {
@@ -123,7 +134,7 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
                   picked={chat.picked}
                   onTogglePick={chat.togglePick}
                   onSend={chat.send}
-                  onPreview={setPreviewing}
+                  onPreview={preview}
                 />
               ))}
               {chat.typing && <TypingRow label={chat.typing} />}

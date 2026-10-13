@@ -1,3 +1,5 @@
+import logging
+
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.urls import path
@@ -12,6 +14,8 @@ from apps.matching.services.parse import to_pence
 
 from . import services
 from .models import Quote
+
+logger = logging.getLogger(__name__)
 
 
 class QuoteRequestSerializer(serializers.Serializer):
@@ -80,7 +84,12 @@ class QuotePdfView(APIView):
         quote = get_object_or_404(quotes, pk=quote_id)
         if not quote.pdf:
             raise Http404("This quote has no document.")
-        response = FileResponse(quote.pdf.open("rb"), content_type="application/pdf")
+        try:
+            document = quote.pdf.open("rb")
+        except Exception:  # the file has gone from storage (for example lost before storage was set up)
+            logger.warning("Quote %s: its document could not be read from storage", quote.id, exc_info=True)
+            raise Http404("This quote's document is no longer stored. Request the quote again.")
+        response = FileResponse(document, content_type="application/pdf")
         how = "attachment" if request.query_params.get("download") else "inline"
         response["Content-Disposition"] = f'{how}; filename="Quote {quote.registration}.pdf"'
         response["Cache-Control"] = "private, no-store"
