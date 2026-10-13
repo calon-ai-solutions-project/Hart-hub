@@ -1,6 +1,6 @@
 import re
 
-from django.core.files.storage import default_storage
+from django.core.files.storage import FileSystemStorage, default_storage
 from django.http import FileResponse, Http404, HttpResponseForbidden, HttpResponseRedirect
 from django.views.decorators.http import require_GET
 
@@ -13,17 +13,17 @@ TYPES = {"jpg": "image/jpeg", "webp": "image/webp"}
 def listing_photo(request, name):
     """A car photo at an address that never changes, for signed-in staff.
 
-    Cards saved in a chat keep this address. With a bucket it forwards to a short-lived signed link;
-    without one the file is read from local storage.
+    Cards saved in a chat keep this address. With Cloudinary or a bucket it forwards to where the
+    file is kept; without one the file is read from local storage.
     """
     if not request.user.is_authenticated:
         return HttpResponseForbidden()
     if not PHOTO_NAME.match(name):
         raise Http404
     key = f"listings/{name}"
-    if hasattr(default_storage, "bucket_name"):
+    if not isinstance(default_storage, FileSystemStorage):
         response = HttpResponseRedirect(default_storage.url(key))
-        response["Cache-Control"] = "private, max-age=1800"  # well inside the signed link's hour
+        response["Cache-Control"] = "private, max-age=1800"  # well inside a bucket's signed link hour
         return response
     if not default_storage.exists(key):
         raise Http404

@@ -99,8 +99,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Where photos and quote documents are kept: Cloudinary, else an S3-compatible bucket, else backend/media.
+CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<api key>:<api secret>@<cloud name>
 S3_BUCKET = env("S3_BUCKET", default="")
-if S3_BUCKET:
+if CLOUDINARY_URL:
+    _default_storage = {"BACKEND": "apps.core.storage.CloudinaryStorage"}
+elif S3_BUCKET:
     _default_storage = {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {

@@ -2,20 +2,20 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
-from django.core.files.storage import default_storage
+from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = ("Copy the photos and quote documents in backend/media to the storage bucket, keeping their "
-            "names. Run once from a machine that has the files, with the S3_* variables set.")
+    help = ("Copy the photos and quote documents in backend/media to Cloudinary or the bucket, keeping their "
+            "names. Run once from a machine that has the files, with CLOUDINARY_URL or the S3_* variables set.")
 
     def add_arguments(self, parser):
-        parser.add_argument("--force", action="store_true", help="Upload files the bucket already has")
+        parser.add_argument("--force", action="store_true", help="Upload files that are already there")
 
     def handle(self, *args, force=False, **options):
-        if not settings.S3_BUCKET:
-            raise CommandError("S3_BUCKET is not set, so there is no bucket to upload to.")
+        if isinstance(default_storage, FileSystemStorage):
+            raise CommandError("Set CLOUDINARY_URL (or the S3_* variables) first: there is nowhere to upload to.")
         root = Path(settings.MEDIA_ROOT)
         files = sorted(path for path in root.rglob("*") if path.is_file())
         sent = kept = 0
