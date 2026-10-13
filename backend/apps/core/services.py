@@ -13,6 +13,7 @@ DEFAULTS = {
     "prep_cost_pence": 110000,
     "target_margin_pence": 200000,  # to confirm with James (onboarding form)
     "ending_soon_hours": 24,
+    "sync_delete_sold_listings": True,
     "sync_slot_motorway": "16:45",
     "sync_slot_carwow": "17:15",
     "sync_slot_bca": "08:00",  # to confirm from real alert times
@@ -35,6 +36,8 @@ DESCRIPTIONS = {
     "prep_cost_pence": "Prep cost per car, in pence (110000 = £1,100). Editable per car on the listing.",
     "target_margin_pence": "Target margin in pence. Selling price = buy price + prep cost + this.",
     "ending_soon_hours": "A car with less than this many hours left is flagged 'ending soon'.",
+    "sync_delete_sold_listings": "true: a car whose page has gone from the platform (sold or withdrawn) is deleted "
+                                 "at the sync, with its photos and quotes. false: it is kept and marked ended.",
     "sync_slot_motorway": "Daily sync time for Motorway, UK time, HH:MM. The sync will not run before it.",
     "sync_slot_carwow": "Daily sync time for Carwow, UK time, HH:MM. The sync will not run before it.",
     "sync_slot_bca": "Daily sync time for BCA, UK time, HH:MM. The sync will not run before it.",

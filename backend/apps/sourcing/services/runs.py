@@ -18,6 +18,7 @@ from django.utils import timezone
 from apps.core.services import emit_event, get_setting, uk_date, uk_now, uk_slot_time
 from apps.listings.models import Listing
 from apps.listings.services.expiry import end_listings
+from apps.listings.services.removal import delete_listings
 
 from ..models import SyncLog, SyncRun
 from ..platforms import PLATFORMS
@@ -177,8 +178,11 @@ def record_url(run, url, outcome, *, record=None, http_status=None, detail="", n
     SyncLog.objects.create(run=run, url=url, outcome=outcome, http_status=http_status, detail=detail[:255], at=now)
     if outcome == SyncLog.Outcome.FAILED and http_status in GONE_STATUSES:
         external_id, _ = PLATFORMS[run.platform].match(url)
-        end_listings(Listing.objects.filter(platform=run.platform, external_id=external_id,
-                                            status__in=Listing.LIVE_STATUSES), "listing_gone", now)
+        gone = Listing.objects.filter(platform=run.platform, external_id=external_id)
+        if get_setting("sync_delete_sold_listings"):  # sold or withdrawn: nothing is kept but the event
+            delete_listings(gone, "listing_gone", now)
+        else:
+            end_listings(gone.filter(status__in=Listing.LIVE_STATUSES), "listing_gone", now)
     return listing
 
 

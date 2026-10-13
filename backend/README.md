@@ -41,6 +41,9 @@ runner's `run_scrape.py`, which searches the platforms by filter and posts each 
 3. The runner (`sync-runner/run_sync.py`, on the dedicated machine) collects the run, opens only the
    allowlisted URLs and posts each car and its photos back.
 4. Every 15 minutes the worker ends listings past their end time and flags those ending soon.
+5. A car whose page has gone from the platform (the runner gets a 404 or 410: sold or withdrawn) is
+   deleted with its photos, search vector, matches and finance quotes, and a `listing.deleted` event
+   records it. Set `sync_delete_sold_listings` (Settings) to false to keep such cars as ended instead.
 
 Rules the hub enforces, whatever the runner does:
 

@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 
 from apps.core.models import Event, Setting
-from apps.listings.models import Listing
+from apps.listings.models import Listing, ListingPhoto
 from apps.sourcing.models import SyncLog, SyncRun
 from apps.sourcing.services import runs
 from apps.sourcing.services.alerts import UnknownPlatform, ingest_alert
@@ -217,11 +218,28 @@ class ScrapeThenSyncTests(TestCase):
                          (1500000, "current_bid", "ending_soon"))
         self.assertEqual(self.car.source, "search")
 
-    def test_listing_page_that_is_gone_ends_the_listing(self):
+    def gone_at_sync(self):
         Listing.objects.update(ends_at=None, status="live")
         run, _ = runs.prepare_run("motorway", NOW)
         run = runs.start_run(run.pk, session_ok=True, now=NOW)
         runs.record_url(run, URL_4, "failed", http_status=404, detail="HTTP 404", now=NOW)
+
+    def test_sold_car_is_deleted_at_the_sync_with_its_photos(self):
+        photo = ListingPhoto.objects.create(listing=self.car, position=99, source_url="https://img.test/1.jpg")
+        photo.image.save("sold-car-test.jpg", ContentFile(b"jpeg"), save=True)
+        storage, name = photo.image.storage, photo.image.name
+        self.assertTrue(storage.exists(name))
+        self.gone_at_sync()
+        self.assertFalse(Listing.objects.filter(pk=self.car.pk).exists())
+        self.assertFalse(ListingPhoto.objects.exists())
+        self.assertFalse(storage.exists(name))
+        event = Event.objects.get(type="listing.deleted")
+        self.assertEqual((event.payload["external_id"], event.payload["reason"]), ("30000004", "listing_gone"))
+        self.assertEqual(SyncLog.objects.filter(url=URL_4, http_status=404).count(), 1)  # the log keeps the URL
+
+    def test_sold_car_is_only_ended_when_deleting_is_switched_off(self):
+        Setting.objects.create(key="sync_delete_sold_listings", value=False)
+        self.gone_at_sync()
         self.car.refresh_from_db()
         self.assertEqual((self.car.status, self.car.ended_reason), ("ended", "listing_gone"))
 

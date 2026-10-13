@@ -161,6 +161,7 @@ BCA and Manheim slots are confirmed once we see when their alerts arrive.
 | Buy Now (no end time) | "Buy now: this car can sell at any time." | Re-checked at the next sync |
 | End time passed | Not shown | Marked ended; removed from matching, cards and posts |
 | Car no longer in the platform's alerts | Not shown | Marked ended at the next sync |
+| Car's page has gone from the platform (sold or withdrawn) | Not shown | Deleted at the next sync with its photos and quotes; an event records it (setting `sync_delete_sold_listings`) |
 
 ### Rules
 
