@@ -45,7 +45,8 @@ class PublicCarPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["available"])
-        self.assertEqual((data["car"]["title"], data["car"]["price_pence"]), ("BMW 1 Series 118i M Sport", 1150000))
+        self.assertEqual(data["car"]["title"], "BMW 1 Series 118i M Sport")
+        self.assertNotIn("price_pence", data["car"])  # no price on the public page
         self.assertEqual(len(data["photos"]), 1)
         text = json.dumps(data).lower()
         for word in STAFF_ONLY:  # nothing anywhere on the page gives away the source, including photo addresses

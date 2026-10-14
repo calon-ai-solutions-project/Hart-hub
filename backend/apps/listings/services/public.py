@@ -50,6 +50,7 @@ def page(token, now=None):
     card = customer_card(listing, now)
     card.pop("id")  # nothing that identifies the car in the Hub
     card.pop("photo")  # the staff photo address needs a login: the page lists every photo below instead
+    card.pop("price_pence")  # no price on the public page (decided 14 Oct 2026)
     # photos are served through the page's own address: where they are stored names the platform
     base = f"/api/public/cars/{token}/photos"
     photos = [{"full": f"{base}/{p.position}", "thumb": f"{base}/{p.position}?size=thumb"}
