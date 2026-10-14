@@ -184,7 +184,7 @@ svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; s
 .staff a { margin-left: auto; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; } .staff a:hover { color: var(--good); }
 
 /* ------------------------------------------------ finance quotes: payment | figures | document */
-.quote { display: grid; grid-template-columns: 232px minmax(0, 1fr) 208px; grid-template-areas: "pay figures doc" "staff staff staff";
+.quote { display: grid; grid-template-columns: 232px minmax(0, 1fr); grid-template-areas: "pay figures" "staff staff";
          background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; box-shadow: var(--shadow-sm); }
 .quote .pay { grid-area: pay; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 4px; color: #fff;
               background: var(--ink); }
@@ -209,14 +209,18 @@ svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; s
 .quote details { font-size: 12px; color: var(--muted); }
 .quote summary { cursor: pointer; font-weight: 600; color: var(--text); width: fit-content; }
 .quote details p { margin: 6px 0 0; line-height: 1.5; }
+.breakdown-body { margin-top: 10px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.breakdown-body table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.breakdown-body th, .breakdown-body td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.breakdown-body tr:last-child th, .breakdown-body tr:last-child td { border-bottom: 0; }
+.breakdown-body th { text-align: left; font-weight: 500; color: var(--muted); padding-right: 16px; }
+.breakdown-body td { text-align: right; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.breakdown-body tr.strong th { color: var(--text); font-weight: 650; }
+.breakdown-body tr.strong td { font-weight: 750; }
+.breakdown-body .breakdown-note { margin: 8px 0 0; font-size: 11.5px; color: var(--faint); line-height: 1.45; }
 .quote .state { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); }
 .quote .follow { padding: 10px 12px; border-radius: 4px; background: var(--warn-soft); color: var(--warn); font-weight: 600; font-size: 13px; }
 
-.quote .doc { grid-area: doc; padding: 16px 18px 14px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px;
-              background: linear-gradient(180deg, var(--sunken), var(--surface) 70%); }
-.quote .doc .btn { width: 100%; }
-.quote .doc .none { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-.quote .doc .hintline { margin-top: auto; font-size: 11.5px; color: var(--faint); line-height: 1.4; }
 
 .quote .staff { grid-area: staff; }
 .quote .why { flex-basis: 100%; display: flex; gap: 8px; padding: 7px 10px; margin-bottom: 2px; border-radius: 4px; background: var(--warn-soft);
@@ -267,11 +271,6 @@ dialog::backdrop { background: rgba(12, 17, 29, .5); }
 .confirm p { margin: 0; font-size: 13.5px; color: var(--muted); }
 .confirm p b { color: var(--text); font-weight: 600; }
 .confirm .acts { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px 18px; }
-dialog.viewer { width: min(940px, 96vw); height: 92dvh; overflow: hidden; }
-dialog.viewer[open] { display: flex; flex-direction: column; }
-.viewer header { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 18px; border-bottom: 1px solid var(--line); }
-.viewer header b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 650; }
-.viewer iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 .toast { position: fixed; left: 50%; bottom: 96px; translate: -50% 12px; padding: 10px 16px; border-radius: 4px; background: var(--ink); color: var(--surface);
          font-size: 13.5px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transition: opacity .18s, translate .18s; z-index: 30; }
 .toast.show { opacity: 1; translate: -50% 0; }
@@ -284,10 +283,7 @@ dialog.viewer[open] { display: flex; flex-direction: column; }
   .top { padding: 0 14px; } .thread { padding: 18px 14px 12px; } .dock { padding: 0 14px 12px; }
   .row.bot { padding-left: 0; } .row.bot::before { display: none; }
   .form { grid-template-columns: 1fr; }
-  .quote { grid-template-columns: 1fr; grid-template-areas: "pay" "figures" "doc" "staff"; }
-  .quote .doc { border-left: 0; border-top: 1px solid var(--line); background: none; flex-direction: row; flex-wrap: wrap; }
-  .quote .doc .btn { flex: 1; width: auto; } .quote .doc .hintline { flex-basis: 100%; margin-top: 2px; }
-  .quote .doc .price-label { flex-basis: 100%; }
+  .quote { grid-template-columns: 1fr; grid-template-areas: "pay" "figures" "staff"; }
   .quote .terms { margin-top: 10px; }
   .card { grid-template-columns: 1fr; grid-template-areas: "photo" "main" "side" "staff"; }
   .photo { min-height: 0; aspect-ratio: 16 / 9; }

@@ -55,6 +55,16 @@ export const chats = {
   send: (id, body) => api(`${CHATS}/${id}/messages`, { method: "POST", body }),
 };
 
+// The WhatsApp-style simulator and the enquiry dashboard (staff only)
+export const sim = {
+  inbound: (phone, text) => api("/api/sim/inbound", { method: "POST", body: { phone, text } }),
+  phone: (phone) => api(`/api/sim/phones/${encodeURIComponent(phone)}`),
+  clear: (phone) => api(`/api/sim/phones/${encodeURIComponent(phone)}`, { method: "DELETE" }),
+  enquiries: (tab) => api(`/api/sim/enquiries?tab=${tab}`),
+  enquiry: (id) => api(`/api/sim/enquiries/${id}`),
+  approve: (id) => api(`/api/sim/enquiries/${id}/approve`, { method: "POST" }),
+};
+
 export const quotes = {
   request: (listingIds, deposit, conversation) =>
     api("/api/quotes", { method: "POST", body: { listing_ids: listingIds, deposit, conversation } }),

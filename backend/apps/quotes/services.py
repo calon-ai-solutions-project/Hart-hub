@@ -11,7 +11,7 @@ from apps.core.services import emit_event, get_setting, uk_date
 from apps.listings.models import Listing
 from apps.matching.services.search import available_stock
 
-from . import codeweavers
+from . import codeweavers, codeweavers_api
 from .models import Quote
 from .pdf import with_vehicle_image
 
@@ -122,6 +122,13 @@ def _run_on_thread(quote_ids):
         connection.close()
 
 
+def fetch_quotes(quote_requests, on_result):
+    """Get the quotes the way the codeweavers_method setting says: the API (default) or the Showroom."""
+    if str(get_setting("codeweavers_method")).strip().lower() == "browser":
+        return codeweavers.get_quotes(quote_requests, on_result)
+    return codeweavers_api.get_quotes(quote_requests, on_result)
+
+
 def vehicle_type(listing):
     return "LCV" if "van" in f"{listing.body} {listing.model}".lower() else "Car"
 
@@ -160,7 +167,7 @@ def run_quotes(quote_ids):
 
     reason = ""
     try:
-        codeweavers.get_quotes([request for request, _ in by_request.values()], on_result)
+        fetch_quotes([request for request, _ in by_request.values()], on_result)
     except codeweavers.CodeweaversUnavailable as e:
         reason = str(e)
         logger.warning("Codeweavers unavailable: %s", e)
@@ -180,11 +187,16 @@ def fail_stuck():
         status=Quote.Status.FAILED, error="The quote timed out. Please try again.", finished_at=timezone.now())
 
 
+def regular_payments(quote):
+    """How many monthly payments there are before the final one (the last payment differs when there is a fee or balloon)."""
+    return quote.term_months - 1 if quote.final_payment_pence not in (None, quote.monthly_pence) else quote.term_months
+
+
 def example(quote):
     """The quote as one sentence, built by code from Codeweavers' figures (AI never writes finance wording)."""
     if quote.status != Quote.Status.DONE:
         return ""
-    regular = quote.term_months - 1 if quote.final_payment_pence not in (None, quote.monthly_pence) else quote.term_months
+    regular = regular_payments(quote)
     payments = f"{regular} monthly payments of {money(quote.monthly_pence)}"
     if regular != quote.term_months:
         optional = "an optional final payment" if quote.balloon_pence else "a final payment"
@@ -216,6 +228,8 @@ def quote_json(quote):
             "apr": apr_text(quote.apr) if done else None,
             "amount_of_credit_pence": quote.amount_of_credit_pence if done else None,
             "total_payable_pence": quote.total_payable_pence if done else None,
+            "charges_pence": quote.charges_pence if done else None,
+            "regular_payments": regular_payments(quote) if done else None,
             "lender": quote.lender if done else "",
             "product_family": quote.product_family if done else "",
             "fees": quote.fees_text if done else "",

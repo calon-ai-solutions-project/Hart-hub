@@ -8,6 +8,40 @@ function kindOf(quote) {
   return "";
 }
 
+/** The representative example, one figure per row. Every figure is Codeweavers'; nothing is worked out here. */
+function Breakdown({ c, kind }) {
+  const finalDiffers = c.final_payment_pence != null && c.final_payment_pence !== c.monthly_pence;
+  const rows = [
+    ["Finance", [kind === "PCP" ? "Personal Contract Purchase" : c.product_family, c.lender].filter(Boolean).join(" · ")],
+    ["Cash price", money2(c.cash_price_pence)],
+    ["Deposit", money2(c.deposit_pence)],
+    ["Amount of credit", money2(c.amount_of_credit_pence)],
+    ["Term", `${c.term_months} months`],
+    [`${c.regular_payments ?? c.term_months} monthly payments of`, money2(c.monthly_pence), "strong"],
+    finalDiffers && [c.optional_final_payment ? "Optional final payment" : "Final payment", money2(c.final_payment_pence)],
+    c.charges_pence != null && ["Total charge for credit", money2(c.charges_pence)],
+    ["Total amount payable", money2(c.total_payable_pence), "strong"],
+    c.annual_mileage && ["Annual mileage", `${miles(c.annual_mileage)} miles`],
+    ["Representative APR", `${c.apr}%`, "strong"],
+  ].filter(Boolean);
+  return (
+    <div className="breakdown-body">
+      <table>
+        <tbody>
+          {rows.map(([label, value, tone]) => (
+            <tr key={label} className={tone || ""}>
+              <th scope="row">{label}</th>
+              <td>{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {c.fees && <p className="breakdown-note">{c.fees}</p>}
+      {c.disclaimer && <p className="breakdown-note">{c.disclaimer}</p>}
+    </div>
+  );
+}
+
 function Dots() {
   return (
     <span className="typing">
@@ -19,7 +53,7 @@ function Dots() {
 }
 
 /** A Codeweavers finance quote. Every figure shown came from Codeweavers; nothing is worked out here. */
-export default function QuoteCard({ quote, onPreview }) {
+export default function QuoteCard({ quote }) {
   const c = quote.customer;
   const s = quote.staff;
   const done = quote.status === "done";
@@ -77,11 +111,9 @@ export default function QuoteCard({ quote, onPreview }) {
                 </div>
               ))}
             </dl>
-            <details>
+            <details className="breakdown">
               <summary>Full breakdown</summary>
-              <p>{c.example}</p>
-              {c.fees && <p>{c.fees}</p>}
-              <p>{c.disclaimer}</p>
+              <Breakdown c={c} kind={kind} />
             </details>
           </>
         )}
@@ -90,30 +122,6 @@ export default function QuoteCard({ quote, onPreview }) {
           <div className="state waiting">
             <Dots />
             {c.message}
-          </div>
-        )}
-      </div>
-
-      <div className="doc">
-        <span className="price-label">Quote document</span>
-        {done && quote.pdf_url ? (
-          <>
-            <button type="button" className="btn primary small" onClick={() => onPreview(quote)}>
-              <Icon name="file" />
-              Preview PDF
-            </button>
-            <a className="btn ghost small" href={`${quote.pdf_url}?download=1`}>
-              Download
-            </a>
-            <div className="hintline">Codeweavers’ own PDF, as the customer would receive it.</div>
-          </>
-        ) : (
-          <div className="none">
-            {done
-              ? "Codeweavers did not return a document for this quote. Request it again to try."
-              : failed
-                ? "No document: the quote could not be made."
-                : "The PDF arrives with the quote."}
           </div>
         )}
       </div>

@@ -24,7 +24,8 @@ class AuthApiTests(TestCase):
         response = self.api.post("/api/auth/login", {"email": "Sales@Example.com", "password": "a-long-password"},
                                  format="json", HTTP_X_CSRFTOKEN=token)
         self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(response.json()["user"], {"email": "sales@example.com", "name": "Sam", "role": "sales"})
+        self.assertEqual(response.json()["user"], {"email": "sales@example.com", "name": "Sam", "role": "sales",
+                                                   "role_label": "Sales", "sections": ["home", "chat", "whatsapp"]})
         self.assertEqual(response.json()["app"], {"ai_enabled": False, "quote_term_months": 48})
 
         token = self.csrf()  # signing in rotates it

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.matching",
     "apps.chat",
     "apps.quotes",
+    "apps.enquiries",
 ]
 
 MIDDLEWARE = [
@@ -141,6 +142,8 @@ if REDIS_URL:
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}}
 else:
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+# Sessions are read from the cache and written through to the database: no session query per request.
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 
 CELERY_BROKER_URL = REDIS_URL or "memory://"
 CELERY_TASK_ALWAYS_EAGER = not REDIS_URL  # no broker: run jobs inline
@@ -165,8 +168,12 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"alerts_inbound": "60/min", "sync": "600/min", "chat": "120/min", "login": "10/min"},
+    "DEFAULT_THROTTLE_RATES": {"alerts_inbound": "60/min", "sync": "600/min", "chat": "120/min", "login": "10/min",
+                               "public": "60/min", "public_photos": "600/min"},
 }
+
+# The address customers open (the web app). Car page links are built on it, e.g. <this>/c/7Kq2xYp9.
+PUBLIC_SITE_URL = env("PUBLIC_SITE_URL", default="http://localhost:5173").rstrip("/")
 
 # ---------------------------------------------------------------- ai
 
@@ -193,6 +200,8 @@ AI_REASONING_EFFORT = env("AI_REASONING_EFFORT", default="minimal")
 CODEWEAVERS_LOGIN_URL = env("CODEWEAVERS_LOGIN_URL", default="")
 CODEWEAVERS_USERNAME = env("CODEWEAVERS_USERNAME", default="")
 CODEWEAVERS_PASSWORD = env("CODEWEAVERS_PASSWORD", default="")
+# The JSON Finance API (the same login, HTTP basic auth). Settings row codeweavers_method picks api or browser.
+CODEWEAVERS_API_URL = (env("CODEWEAVERS_API_URL", default="") or "https://services.codeweavers.net").rstrip("/")
 
 # ---------------------------------------------------------------- platform sync (contract Schedule 1)
 

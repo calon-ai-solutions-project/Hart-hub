@@ -143,6 +143,16 @@ class SearchTests(TestCase):
     def ids(self, **wanted):
         return [c.listing.external_id for c in self.find(**wanted)[0]]
 
+    def test_the_same_car_listed_twice_is_offered_once(self):
+        car("first", registration="XX20 TST")
+        car("relisted", registration="xx20tst")  # the platform relisted it under a new number
+        car("other", registration="XX21 TST")
+        car("no-reg-1")
+        car("no-reg-2")  # cars without a registration cannot be told apart, so both stay
+        found = self.ids(make="BMW")
+        self.assertEqual(len([i for i in found if i in ("first", "relisted")]), 1)
+        self.assertEqual(sorted(i for i in found if i not in ("first", "relisted")), ["no-reg-1", "no-reg-2", "other"])
+
     def test_only_available_cars_are_ever_offered(self):
         car("ok")
         car("ended", status="ended")
@@ -278,7 +288,7 @@ class CardTests(TestCase):
     def test_available_until_wording(self):
         def ends(**kwargs):
             return available_until(Listing(ends_at=kwargs.get("at")), NOW)
-        self.assertEqual(ends(at=None), "Buy now: this car can sell at any time.")
+        self.assertEqual(ends(at=None), "Available: Immediate.")
         self.assertEqual(ends(at=datetime(2026, 10, 12, 21, 59, tzinfo=timezone.utc)),
                          "This deal ends today at 10.59pm. After that it's gone.")
         self.assertEqual(ends(at=datetime(2026, 10, 13, 14, 30, tzinfo=timezone.utc)),

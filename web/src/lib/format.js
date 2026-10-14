@@ -28,7 +28,7 @@ export function groupOf(iso) {
 
 /** When a car stops being available: UK date and time, how long is left, and how urgent that is. */
 export function endsInfo(endsAt, now = Date.now()) {
-  if (!endsAt) return { state: "open", date: "No end date", left: "Buy now: can sell at any time" };
+  if (!endsAt) return { state: "open", date: "Immediate", left: "No end date from the platform" };
   const end = new Date(endsAt);
   const part = (options) => end.toLocaleDateString("en-GB", { ...UK, ...options });
   const thisYear = part({ year: "numeric" }) === new Date(now).toLocaleDateString("en-GB", { ...UK, year: "numeric" });

@@ -3,6 +3,7 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import CanSell
 from apps.core.services import emit_event
 
 from .. import services
@@ -40,9 +41,11 @@ def conversation_json(conversation, messages=None):
 
 
 class ChatView(APIView):
-    """Staff session login (the default authentication). A salesperson only sees their own chats."""
+    """Staff session login (the default authentication). A salesperson only sees their own chats.
+    The stock chat is for the roles that sell (owner and sales)."""
 
     throttle_scope = "chat"
+    permission_classes = [CanSell]
 
     def conversation(self, request, conversation_id):
         return get_object_or_404(Conversation, pk=conversation_id, user=request.user)

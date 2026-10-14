@@ -79,6 +79,18 @@ def described(candidates):
     return any(c.similarity is not None and c.similarity >= DESCRIBED_WELL for c in candidates)
 
 
+def once_per_car(candidates):
+    """A platform can list the same car twice (relisted under a new number): keep its best-placed listing."""
+    seen, unique = set(), []
+    for candidate in candidates:
+        plate = "".join(candidate.listing.registration.split()).upper()
+        if plate and plate in seen:
+            continue
+        seen.add(plate)
+        unique.append(candidate)
+    return unique
+
+
 def find(requirement, now=None):
     """(candidates, notes): up to 20 cars, best first, and plain-language notes on anything relaxed.
 
@@ -126,7 +138,7 @@ def find(requirement, now=None):
             points = score(listing, requirement, now) + closeness.get(listing.id, 0) * SIMILARITY_WEIGHT
             tier.append(Candidate(listing, round(points, 2), car_flags, similarity))
         candidates += sorted(tier, key=ORDERS.get(requirement.sort, ORDERS[""]))
-    candidates = candidates[:SHORTLIST]
+    candidates = once_per_car(candidates)[:SHORTLIST]
 
     notes = []
     wanted = f"{requirement.make} {requirement.model}".strip() or "that budget"

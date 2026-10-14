@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from apps.core.services import uk_now
 from apps.listings.models import Listing
+from apps.listings.services.public import car_page_url
 
 # The complete list of what a customer may see. Nothing else is ever added to a customer payload.
 CUSTOMER_FIELDS = ("id", "title", "year", "mileage", "fuel", "gearbox", "colour", "body", "spec", "price_pence",
@@ -19,7 +20,7 @@ def clock(moment):
 def available_until(listing, now=None):
     """The 'this deal ends' line, from the platform's end time (UK time)."""
     if listing.ends_at is None:
-        return "Buy now: this car can sell at any time."
+        return "Available: Immediate."  # no end time from the platform
     now, ends = uk_now(now or timezone.now()), uk_now(listing.ends_at)
     days = (ends.date() - now.date()).days
     if days == 0:
@@ -73,4 +74,5 @@ def staff_card(listing, reason="", flags=(), score=None, similarity=None):
         "match_score": score,
         "similarity": None if similarity is None else round(similarity, 3),
         "flags": list(flags),
+        "customer_page": car_page_url(listing),
     }

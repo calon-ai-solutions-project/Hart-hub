@@ -95,13 +95,20 @@ refine the same request.
 
 ## Finance quotes (Codeweavers)
 
-In the chat, tick up to five cars, check the deposit and press **Get finance quotes**. Each quote
-appears as it arrives (about 30 to 50 seconds for the first, less for the rest).
+In the chat, tick up to five cars, check the deposit and press **Get finance quotes**.
 
-- There is no Codeweavers API access yet, so `apps/quotes/codeweavers.py` signs in to the Showroom in
-  a headless browser, looks the car up by registration, enters mileage, price, deposit and term,
-  presses calculate and reads Codeweavers' own answer. It never opens the Application tab and never
-  saves or submits anything: quotes only.
+- **Two ways to get quotes**, chosen by the `codeweavers_method` setting:
+  - `api` (default): `apps/quotes/codeweavers_api.py` calls Codeweavers' JSON Finance API
+    (`POST /public/v3/jsonfinance/calculate`, Hart's Codeweavers login as HTTP basic auth). All cars go
+    in one call, PCP and HP together, in a few seconds. Checked against the Showroom on real cars: the
+    same monthly, final payment, APR and total payable to the penny. The lender name is read from
+    Codeweavers' terms for the quote. **No quote document (PDF)**: the API does not provide one.
+  - `browser`: `apps/quotes/codeweavers.py` signs in to the Showroom in a headless browser, enters
+    the car and deal, and reads Codeweavers' answer and PDF (30 to 50 seconds a car, one at a time;
+    signs out anyone else using the login). It never opens the Application tab: quotes only.
+- Either way, an answer for a different term, price, deposit or annual mileage than asked is refused.
+  Codeweavers sometimes lowers the deposit on cheap cars (a lender minimum); those cars are not quoted
+  rather than shown with a different deposit.
 - Every figure shown comes from Codeweavers. Nothing is calculated or estimated, and a car that
   cannot be quoted shows "Finance quote to follow" with the reason for staff.
 - Term, extra mileage, annual mileage, product, credit rating and the wording under each quote are
@@ -109,19 +116,16 @@ appears as it arrives (about 30 to 50 seconds for the first, less for the rest).
   `codeweavers_annual_mileage` = 8000, `codeweavers_product` = "(MotoNovo Finance) PCP",
   `codeweavers_fallback_product` = "(MotoNovo Finance) HP",
   `codeweavers_credit_tier`, `finance_disclaimer`).
-- **PCP first, Hire Purchase only as a fallback.** The chosen lender's PCP is tried first, then the
-  other lenders' PCP products. Only if no PCP can be quoted at the term on that car (older cars often
-  cannot have a 48-month PCP) is `codeweavers_fallback_product` = "(MotoNovo Finance) HP" quoted,
-  followed by other lenders' HP. The quote records which product was really quoted and tells staff
-  why. The term is never shortened. Empty the fallback setting to switch this off.
+- **PCP only.** Every quote is a 48-month PCP; a car with no PCP at that term is not quoted, so it is
+  never offered to a customer (the WhatsApp flow moves on to the next car). Older cars often have no
+  48-month PCP. Setting `codeweavers_fallback_product` (empty by default) to an HP product would quote HP
+  instead for those cars. The term is never shortened.
 - **Checked before it is kept.** The Showroom screen remembers the last car, product and term, so
   every answer is checked against what was asked: registration, mileage, term, price, deposit and
   annual mileage. A calculation or document for anything else is refused.
 - Where Codeweavers' document shows its grey "Image not available" box, `apps/quotes/pdf.py` puts the
   standard no-vehicle picture there instead. Nothing else in the document is changed.
-- Each quote keeps Codeweavers' own quote document (PDF). Staff open it with **Preview PDF** on the
-  quote card or download it; only the person who asked for the quote and the owner can. To get the
-  document the quote is saved on the Hub's one proposal, so that proposal's quote history grows.
+- Quotes are shown and sent as figures only; no PDF is offered to staff or customers.
 - The same car with the same inputs is not quoted twice in a day for the same person.
 - One Showroom proposal is created once and re-used for every quote (`codeweavers_proposal_url`),
   so the Hub does not fill Hart's proposal list.

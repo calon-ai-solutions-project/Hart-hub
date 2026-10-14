@@ -1,0 +1,65 @@
+/* The public car page a customer opens from WhatsApp. Same palette as the portal. */
+.public { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.public-top { background: var(--side); padding: 14px 16px; display: flex; justify-content: center; }
+.public-top img { height: 40px; width: auto; display: block; }
+.public-main { width: 100%; max-width: 720px; margin: 0 auto; padding: 16px 16px 96px; display: flex; flex-direction: column; gap: 16px; }
+
+.gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--sunken); border: 1px solid var(--line); }
+.gallery-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.gallery-track::-webkit-scrollbar { display: none; }
+.gallery-track img { flex: none; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; scroll-snap-align: start; background: var(--sunken); }
+.gallery-empty { width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; color: var(--muted); }
+.gallery-count { position: absolute; right: 10px; bottom: 10px; padding: 3px 9px; border-radius: 3px; background: rgba(15, 14, 12, .72);
+                 color: #fff; font-size: 12px; font-weight: 600; }
+
+.public-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 18px 16px;
+               display: flex; flex-direction: column; gap: 14px; }
+.public-card h1, .public-note h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 27px; line-height: 1.15; color: var(--ink); }
+.public-card .specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
+.public-card .specs div { padding: 0; border: 0; }
+.public-price { display: flex; align-items: baseline; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line); }
+.public-price b { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.public-card .ends { margin: 0; padding: 0; border: 0; }
+.public-card .ends .date { white-space: normal; align-items: flex-start; font-weight: 600; }
+.public-card .ends .date svg { margin-top: 3px; }
+.public-fine { margin: 0; font-size: 12px; color: var(--faint); }
+.public-note { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 18px; margin: 0; color: var(--muted); }
+.public-note p { margin: 8px 0 0; }
+
+.public-reply { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 688px; margin: 0 auto; height: 50px; display: grid;
+                place-items: center; border-radius: var(--radius); background: var(--green); color: #fff; font-weight: 700;
+                text-decoration: none; box-shadow: var(--shadow-md); }
+.public-reply:hover { background: #23ad61; }
+
+/* gallery controls: arrows and keys on a computer, swipe on a phone, thumbnails on both */
+.gallery:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gallery-arrow { position: absolute; top: 50%; translate: 0 -50%; width: 42px; height: 42px; border: 0; border-radius: 50%;
+                 background: rgba(255, 255, 255, .9); color: var(--ink); font-size: 26px; line-height: 1; display: grid;
+                 place-items: center; box-shadow: var(--shadow-md); cursor: pointer; padding-bottom: 3px; }
+.gallery-arrow:hover { background: #fff; }
+.gallery-arrow.prev { left: 10px; } .gallery-arrow.next { right: 10px; }
+.gallery-thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: thin; margin-top: -8px; }
+.gallery-thumbs button { flex: none; width: 84px; aspect-ratio: 4 / 3; padding: 0; border: 2px solid transparent;
+                         border-radius: var(--radius-sm); overflow: hidden; background: var(--sunken); opacity: .7; cursor: pointer; }
+.gallery-thumbs button.on { border-color: var(--ink); opacity: 1; }
+.gallery-thumbs button:hover { opacity: 1; }
+.gallery-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 520px) { .gallery-arrow { width: 36px; height: 36px; font-size: 22px; } .gallery-thumbs button { width: 66px; } }
+
+/* the customer's enquiry form */
+.public-card.enquiry { gap: 12px; }
+.public-lead { margin: -6px 0 4px; color: var(--muted); font-size: 13.5px; }
+.public-card .field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.public-card .field input { height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+                            background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 400; min-width: 0; }
+.public-card .field input:focus { outline: 0; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(15, 14, 12, .08); }
+.public-card .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button { height: 40px; border: 0; border-right: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-weight: 500; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--ink); color: #fff; font-weight: 650; }
+.public-submit { margin-top: 6px; height: 48px; border: 0; border-radius: var(--radius); background: var(--green); color: #fff;
+                 font-size: 15px; font-weight: 700; }
+.public-submit:disabled { opacity: .7; }
+.public-card .field input { width: 100%; }
+.public-card .two > * { min-width: 0; }

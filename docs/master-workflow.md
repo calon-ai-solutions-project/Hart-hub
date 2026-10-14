@@ -158,7 +158,7 @@ BCA and Manheim slots are confirmed once we see when their alerts arrive.
 | --- | --- | --- |
 | Car has an end time | "This deal ends tomorrow at 3.30pm. After that it's gone." | Exact time from the platform |
 | Less than 24 hours left | Same, marked "ending soon" | Flagged in the inbox |
-| Buy Now (no end time) | "Buy now: this car can sell at any time." | Re-checked at the next sync |
+| Buy Now (no end time) | "Available: Immediate." | Re-checked at the next sync |
 | End time passed | Not shown | Marked ended; removed from matching, cards and posts |
 | Car no longer in the platform's alerts | Not shown | Marked ended at the next sync |
 | Car's page has gone from the platform (sold or withdrawn) | Not shown | Deleted at the next sync with its photos and quotes; an event records it (setting `sync_delete_sold_listings`) |
@@ -235,7 +235,7 @@ If the customer does not reply, the CRM marks them "gone quiet" after 3 days, re
 | Photos, title, year, mileage, fuel, gearbox, colour, key spec | Platform and listing link |
 | Selling price | Buy price, prep cost, margin |
 | Codeweavers monthly payment, deposit, term, APR, total, with FCA wording | Codeweavers quote reference |
-| "This deal ends [day] at [time]" or "Buy now: can sell at any time" | Match reason and score |
+| "This deal ends [day] at [time]" or "Available: Immediate." | Match reason and score |
 
 ### Data in and out
 
@@ -262,6 +262,43 @@ If the customer does not reply, the CRM marks them "gone quiet" after 3 days, re
 - A car expires while waiting in the inbox: the card is greyed out and cannot be sent.
 - Codeweavers is down: the card shows "finance quote to follow"; the salesperson can add figures manually.
 - Customer wants two different cars: two requirements, matched separately.
+
+### Built so far (October 2026 demo)
+
+The journey runs in the portal's **WhatsApp simulator** (fake numbers) on a channel-independent engine
+(`backend/apps/enquiries`); the real WhatsApp API plugs into the same engine later.
+
+1. **First message only is read by AI** (Gemini through the metered client, prompt `intent-v1` with a
+   30-example eval set: `python manage.py eval_intent`). Car enquiry or finance → the form link.
+   Other business (MOT, viewing, test drive, complaint) → no reply, "Needs a person". Personal → no reply
+   and **nothing stored**. Below `enquiry_min_confidence` (0.6) the Hub stays quiet and a person reads it.
+2. **Later messages are handled by the step, not AI:** one reminder of the form link; one "still working
+   on it"; after the options, a number ("2", "the second one", "the Audi") hands over to the salesperson
+   and the bot goes quiet.
+3. **One-time form link** (`/f/<code>`, `form_link_days` = 7): make & model, colour, needed by, gearbox,
+   monthly budget, deposit, part-exchange.
+4. **PCP only (14 Oct 2026):** only cars with a 48-month PCP quote are sent; no Hire Purchase.
+   **Quote first, then send:** cars are tried at Codeweavers in ranked order with the form's deposit until
+   `enquiry_options` (5) have a quote or `enquiry_max_quotes` (12) have been tried. Cars that cannot be
+   quoted are skipped. None quoted → "Needs a person", nothing sent.
+5. **Approval:** the options wait for **Approve & send** unless the owner turns on `enquiry_auto_send`.
+   Cars that ended meanwhile are dropped; outside the 24-hour window nothing is sent (template needed).
+6. **Messages built by code from the customer card and the Codeweavers figures:** an intro, one message per
+   car (first photo, details, monthly payment exactly as quoted, deal end, "more photos" link to
+   `/c/<code>`), and a closing line with the disclaimer.
+   **Needs sign-off:** on 14 Oct 2026 the price line and the FCA representative example were removed from
+   the car messages at Mehedi's request. FCA rules (CONC 3.5) normally require a representative example
+   beside a monthly payment, so Alom / Hart must approve this before real customers receive these messages.
+   The same day the closing message lost its "Finance is subject to status" disclaimer and the first-payment
+   bonus line; this is part of the same sign-off.
+
+7. **No quote documents:** quotes come from Codeweavers' API (figures, lender and terms, no PDF). Customers get
+   the figures and representative example in the car messages; no PDF is shown to staff or sent to customers.
+8. **When a customer chooses a car** the dashboard shows an alert (banner, chime, browser tab title) for
+   whoever has the simulator open.
+
+Not built yet: real WhatsApp API and templates, the 2-hour form reminder, name/email/consent on the form,
+several makes or body type in one request, plate blurring in photos.
 
 ## W2 Portal chatbot
 

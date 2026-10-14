@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.ai.client import ai_enabled
+
+from .permissions import SECTIONS
 from apps.core.services import get_setting
 
 
@@ -17,7 +19,8 @@ def session_json(request):
     """Who is signed in, and the few settings the portal needs to draw itself."""
     user = request.user if request.user.is_authenticated else None
     return {
-        "user": user and {"email": user.email, "name": user.get_full_name(), "role": user.role},
+        "user": user and {"email": user.email, "name": user.get_full_name(), "role": user.role,
+                          "role_label": user.get_role_display(), "sections": SECTIONS.get(user.role, ["home"])},
         "app": {"ai_enabled": ai_enabled(), "quote_term_months": int(get_setting("codeweavers_term_months"))} if user else None,
     }
 

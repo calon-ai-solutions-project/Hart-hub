@@ -88,6 +88,11 @@ export default function CarCard({ option, rank, picked, onToggle }) {
           <i className={`dot ${s.margin_band}`} />
           Margin <b className={s.margin_band}>{money(s.margin_pence)}</b>
         </span>
+        {s.customer_page && (
+          <a href={s.customer_page} target="_blank" rel="noopener noreferrer" title="The page a customer sees">
+            Customer page ↗
+          </a>
+        )}
         <a href={s.listing_url} target="_blank" rel="noopener noreferrer">
           View listing ↗
         </a>

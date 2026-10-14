@@ -1,7 +1,7 @@
 # Hart Hub web
 
 The staff portal's frontend: React + Vite. Today it holds the stock chatbot (staff type the request, the five
-best cars, Codeweavers finance quotes and their PDFs). It only talks to the backend's API.
+best cars and Codeweavers finance quotes). It only talks to the backend's API.
 
 ## Layout
 
@@ -31,6 +31,28 @@ npm run dev
 Open http://localhost:5173 and sign in with a staff account (`python manage.py createsuperuser`).
 If the backend is not on `http://127.0.0.1:8000`, copy `.env.example` to `.env` and set
 `VITE_BACKEND_URL`.
+
+## Roles
+
+After sign-in everyone lands on **Home** (`#home`), a dashboard for their role. The server enforces the
+same rules (`backend/apps/accounts/permissions.py`); the page only hides what the server would refuse.
+
+| Role | Home shows | Stock chat (`#chat`) | WhatsApp enquiries (`#whatsapp`) |
+| --- | --- | --- | --- |
+| Owner | Team table, Codeweavers today, recent wins | Yes | Every enquiry; can approve, reply and send |
+| Sales | Their to-do list and week | Yes | Unassigned ones and their own; can approve, reply and send |
+| Admin | Won deals | No | Every enquiry, read only |
+
+A role is set per user in the backend admin (Users → role). Replying to or approving an unassigned
+enquiry assigns it to that salesperson.
+
+## Public car page
+
+`/c/<code>` is the "more photos" page a customer opens from WhatsApp. It needs no sign-in and shows
+customer fields only; its photos come through `/api/public/cars/<code>/photos/<n>`, so no address
+names the platform. Staff see the link as **Customer page ↗** on each car card. Links are built on the
+backend's `PUBLIC_SITE_URL`; the "Reply on WhatsApp" button appears once the `public_whatsapp_number`
+setting is filled in.
 
 ## Sign-in
 

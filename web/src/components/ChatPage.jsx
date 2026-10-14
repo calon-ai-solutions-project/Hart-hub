@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import useChat, { MAX_PICKS } from "../hooks/useChat.js";
-import { ConfirmDelete, PdfViewer, Toast } from "./Dialogs.jsx";
+import { ConfirmDelete, Toast } from "./Dialogs.jsx";
 import { Composer, FilterBar, SelectionBar } from "./Dock.jsx";
 import Icon from "./Icon.jsx";
 import Message, { ThreadLoading, TypingRow } from "./Message.jsx";
-import Sidebar from "./Sidebar.jsx";
+import ChatList from "./ChatList.jsx";
+import SideNav from "./SideNav.jsx";
 
 const TOAST_MS = 2600;
 
-/** The staff chat screen: chats on the left, the open chat in the middle, the composer at the bottom. */
+/** The stock chat, laid out like WhatsApp enquiries: the menu, the chat history, and the open chat. */
 export default function ChatPage({ user, app, startFresh, onSignOut }) {
   const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
@@ -21,10 +22,8 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const chat = useChat(notify, startFresh);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [previewing, setPreviewing] = useState(null);
   const scroller = useRef(null);
 
   // new messages, and the typing dots, bring the thread to the bottom
@@ -39,17 +38,6 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
     const node = scroller.current;
     if (hasPicks && node.scrollHeight - node.scrollTop - node.clientHeight < 160) node.scrollTop = node.scrollHeight;
   }, [hasPicks]);
-
-  // check the document is really there before opening the viewer, so a lost file gives a clear message
-  async function preview(quote) {
-    try {
-      const answer = await fetch(quote.pdf_url, { credentials: "same-origin" });
-      if (!answer.ok) throw new Error("missing");
-      setPreviewing(quote);
-    } catch {
-      notify("This quote's document is no longer stored. Request the quote again.");
-    }
-  }
 
   async function confirmDelete() {
     setDeleteBusy(true);
@@ -69,47 +57,27 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
 
   return (
     <>
-      <div className="app">
-        <Sidebar
-          chats={chat.chats}
-          currentId={chat.current?.id}
-          open={menuOpen}
-          user={user}
-          onNew={() => {
-            setMenuOpen(false);
-            chat.startNew();
-          }}
-          onOpen={(id) => {
-            setMenuOpen(false);
-            chat.open(id);
-          }}
-          onDelete={setDeleting}
-          onSignOut={onSignOut}
-        />
-
-        <section className="main">
-          <header className="top">
-            <button
-              className="icon-btn menu"
-              id="menu"
-              type="button"
-              aria-label="Show chats"
-              onClick={() => setMenuOpen((now) => !now)}
-            >
-              <Icon name="menu" />
+      <div className="crm">
+        <SideNav user={user} current="chat" onSignOut={onSignOut} />
+        <div className="crm-main wa-page">
+          <header className="wa-top">
+            <div className="wa-title">
+              <h1>Stock chat</h1>
+              <span className="sim-pill">
+                <i className={app.ai_enabled ? "on" : ""} /> {app.ai_enabled ? "AI ranking on" : "Rule-based matching"}
+              </span>
+            </div>
+            <button className="btn primary" id="new" type="button" onClick={chat.startNew}>
+              + New chat
             </button>
+          </header>
+
+          <div className="chat-body">
+            <ChatList chats={chat.chats} currentId={chat.current?.id} onOpen={chat.open} onDelete={setDeleting} />
+
+        <section className="main chat-pane">
+          <header className="top">
             <h1 id="title">{chat.current?.title || "New chat"}</h1>
-            <span
-              className={`badge hide-sm${app.ai_enabled ? " on" : ""}`}
-              title={
-                app.ai_enabled
-                  ? "AI reads free text and ranks the shortlist"
-                  : "Set OPENROUTER_API_KEY and OPENROUTER_MODEL to turn AI on"
-              }
-            >
-              <i />
-              {app.ai_enabled ? "AI ranking on" : "Rule-based matching"}
-            </span>
             <button
               className="icon-btn danger"
               id="delete-current"
@@ -134,7 +102,6 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
                   picked={chat.picked}
                   onTogglePick={chat.togglePick}
                   onSend={chat.send}
-                  onPreview={preview}
                 />
               ))}
               {chat.typing && <TypingRow label={chat.typing} />}
@@ -162,10 +129,11 @@ export default function ChatPage({ user, app, startFresh, onSignOut }) {
             </div>
           </div>
         </section>
+          </div>
+        </div>
       </div>
 
       <ConfirmDelete chat={deleting} busy={deleteBusy} onCancel={() => setDeleting(null)} onConfirm={confirmDelete} />
-      <PdfViewer quote={previewing} onClose={() => setPreviewing(null)} />
       <Toast message={toast} />
     </>
   );

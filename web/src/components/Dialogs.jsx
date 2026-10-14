@@ -50,28 +50,6 @@ export function ConfirmDelete({ chat, busy, onCancel, onConfirm }) {
   );
 }
 
-/** Codeweavers' own quote document, shown without leaving the chat. */
-export function PdfViewer({ quote, onClose }) {
-  const url = quote?.pdf_url;
-  return (
-    <Modal open={Boolean(quote)} onClose={onClose} className="viewer" labelledBy="viewer-title">
-      <header>
-        <b id="viewer-title">Finance quote · {quote?.customer.title}</b>
-        <a className="btn ghost small" id="viewer-open" href={url} target="_blank" rel="noopener">
-          Open in new tab
-        </a>
-        <a className="btn ghost small" id="viewer-download" href={`${url}?download=1`}>
-          Download
-        </a>
-        <button type="button" className="btn ghost small" id="viewer-close" onClick={onClose}>
-          Close
-        </button>
-      </header>
-      <iframe id="viewer-frame" title="Codeweavers quote PDF" src={url} />
-    </Modal>
-  );
-}
-
 export function Toast({ message }) {
   return (
     <div className={`toast${message ? " show" : ""}`} id="toast" role="status">

@@ -1,0 +1,63 @@
+/* The role-based home page and the top bar shared by the pages without the chat sidebar. */
+.home { min-height: 100dvh; background: var(--bg); }
+.topbar { display: flex; align-items: center; gap: 18px; padding: 10px 20px; background: var(--side); color: var(--side-text); }
+.topbar img { height: 34px; }
+.topbar nav { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; }
+.topbar nav a { padding: 7px 12px; border-radius: var(--radius-sm); color: var(--side-text); text-decoration: none; font-weight: 550; font-size: 13.5px; }
+.topbar nav a:hover { background: var(--side-surface); color: #fff; }
+.topbar nav a[aria-current="page"] { background: var(--side-surface); color: #fff; box-shadow: inset 0 -2px 0 var(--green); }
+.topbar-user { display: flex; flex-direction: column; line-height: 1.2; text-align: right; }
+.topbar-user b { color: #fff; font-size: 13px; }
+.topbar-user small { color: var(--side-muted); font-size: 11.5px; }
+.topbar .signout { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--side-muted); }
+.topbar .signout:hover { background: var(--side-surface); color: #fff; }
+
+.home-main { max-width: 1040px; margin: 0 auto; padding: 34px 20px 60px; }
+.eyebrow { margin: 0 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.home-main h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 40px; color: var(--ink); letter-spacing: -.01em; }
+.home-lead { margin: 6px 0 24px; color: var(--muted); }
+.home-main h2 { margin: 26px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.home-note { margin: -2px 0 12px; color: var(--muted); font-size: 13.5px; }
+.home-empty { margin: 0; padding: 16px; background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.stat { display: flex; flex-direction: column; gap: 2px; padding: 16px; background: var(--surface); border: 1px solid var(--line);
+        border-radius: var(--radius); text-decoration: none; color: var(--text); }
+a.stat:hover { border-color: var(--ink); }
+.stat b { font-size: 30px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.stat span { font-size: 13px; color: var(--muted); }
+.stat.act { border-top: 3px solid var(--ink); } .stat.warn { border-top: 3px solid var(--warn); } .stat.good { border-top: 3px solid var(--green); }
+
+.todo { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.todo-row { display: grid; grid-template-columns: 170px 220px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px;
+            border-bottom: 1px solid var(--line); text-decoration: none; color: var(--text); }
+.todo-row:last-child { border-bottom: 0; }
+.todo-row:hover { background: var(--sunken); }
+.todo-row b { color: var(--ink); } .todo-row small { color: var(--muted); }
+.todo-row .step { justify-self: start; }
+
+.sections { border-top: 1px solid var(--line); }
+.section-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 2px; border-bottom: 1px solid var(--line);
+               text-decoration: none; color: var(--text); }
+.section-row b { display: block; font-size: 16px; color: var(--ink); }
+.section-row small { color: var(--muted); font-size: 13.5px; }
+.section-row .arrow { font-size: 20px; color: var(--ink); transition: translate .15s; }
+.section-row:hover .arrow { translate: 4px 0; }
+
+.read-only { padding: 8px 12px; border-radius: var(--radius-sm); background: var(--sunken); color: var(--muted); font-size: 13px; }
+
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; } .topbar-user { display: none; }
+  .home-main h1 { font-size: 32px; }
+  .todo-row { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* the clean dashboard while its reports are being built */
+.dash-clean { max-width: 820px; }
+.dev-card { margin: 26px 0 30px; padding: 28px 30px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+            border-top: 3px solid var(--green); }
+.dev-badge { display: inline-block; padding: 3px 10px; border-radius: 3px; background: var(--good-soft); color: var(--good);
+             font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.dev-card h2 { margin: 14px 0 6px; font-family: var(--serif); font-weight: 400; font-size: 26px; color: var(--ink);
+               letter-spacing: 0; text-transform: none; }
+.dev-card p { margin: 0; color: var(--muted); max-width: 560px; }

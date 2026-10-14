@@ -7,7 +7,7 @@ const POLL_MS = 4000;
 const waiting = (quote) => quote.status === "pending" || quote.status === "running";
 
 /** The quotes of one "finance quotes" message. Each fills in as it arrives from Codeweavers. */
-export default function QuoteList({ ids, onPreview }) {
+export default function QuoteList({ ids }) {
   const [quotes, setQuotes] = useState(null);
   const [failed, setFailed] = useState(false);
   const key = ids.join(",");
@@ -38,7 +38,7 @@ export default function QuoteList({ ids, onPreview }) {
   return (
     <div className="cards results">
       {quotes.map((quote) => (
-        <QuoteCard key={quote.id} quote={quote} onPreview={onPreview} />
+        <QuoteCard key={quote.id} quote={quote} />
       ))}
     </div>
   );

@@ -3,7 +3,7 @@ import CarCard from "./CarCard.jsx";
 import QuoteList from "./QuoteList.jsx";
 
 /** One message in the thread: plain text, car options, or finance quotes. */
-export default function Message({ message, latest, picked, onTogglePick, onSend, onPreview }) {
+export default function Message({ message, latest, picked, onTogglePick, onSend }) {
   const payload = message.payload || {};
 
   return (
@@ -34,7 +34,7 @@ export default function Message({ message, latest, picked, onTogglePick, onSend,
         </div>
       )}
 
-      {message.kind === "quotes" && <QuoteList ids={payload.quote_ids} onPreview={onPreview} />}
+      {message.kind === "quotes" && <QuoteList ids={payload.quote_ids} />}
 
       {/* one-tap next steps, only under the latest answer */}
       {latest && payload.suggestions?.length > 0 && (

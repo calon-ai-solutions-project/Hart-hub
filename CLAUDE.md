@@ -75,6 +75,7 @@ backend/apps/ai                 the one metered AI client and the ai_usage log
 backend/apps/matching           requirements, parsing, hard filters, ranking, option cards
 backend/apps/chat               staff chatbot: conversations and API (the page is in web/)
 backend/apps/quotes             Codeweavers finance quotes (Showroom driven in a headless browser)
+backend/apps/enquiries          W1 customer journey engine (classifier, form link, quote-then-send, hand-over)
 web/                            React + Vite frontend (staff chatbot); talks only to the backend API
 sync-runner/run_sync.py         the daily sync loop
 sync-runner/scrapers            sync guard, hub client, per-platform collectors, page parsers, login scripts

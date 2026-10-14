@@ -9,6 +9,7 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import CanSell
 from apps.chat.models import Conversation, Message
 from apps.matching.services.parse import to_pence
 
@@ -30,6 +31,8 @@ class QuotesView(APIView):
     throttle_scope = "chat"
 
     def post(self, request):
+        if not CanSell().has_permission(request, self):
+            return Response({"detail": "Your role does not include requesting quotes."}, status=403)
         serializer = QuoteRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -74,13 +77,22 @@ class QuotesView(APIView):
 
 
 class QuotePdfView(APIView):
-    """Codeweavers' quote document, for the member of staff who asked for the quote (or the owner)."""
+    """Codeweavers' quote document, for the member of staff who asked for the quote (or the owner).
+
+    Quotes made for a customer enquiry (the WhatsApp flow) are the team's, so any staff member may open them.
+    """
 
     throttle_scope = "chat"
 
     @method_decorator(xframe_options_sameorigin)  # the chat page previews it in a frame
     def get(self, request, quote_id):
-        quotes = Quote.objects.all() if request.user.role == "owner" else Quote.objects.filter(requested_by=request.user)
+        from django.db.models import Q
+
+        from apps.enquiries.models import EnquiryOption
+
+        enquiry_quotes = EnquiryOption.objects.filter(quote__isnull=False).values("quote_id")
+        quotes = Quote.objects.all() if request.user.role == "owner" else Quote.objects.filter(
+            Q(requested_by=request.user) | Q(pk__in=enquiry_quotes))
         quote = get_object_or_404(quotes, pk=quote_id)
         if not quote.pdf:
             raise Http404("This quote has no document.")

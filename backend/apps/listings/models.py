@@ -181,3 +181,17 @@ class ListingPhoto(UUIDModel):
 
     def __str__(self):
         return f"{self.listing_id} #{self.position}"
+
+
+class CarLink(UUIDModel):
+    """The public "more photos" page for one car: an unguessable short code instead of anything that
+    identifies the car or where it came from. The page shows customer fields only."""
+
+    listing = models.OneToOneField(Listing, on_delete=models.CASCADE, related_name="public_link")
+    token = models.CharField(max_length=24, unique=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    opened_count = models.PositiveIntegerField(default=0)
+    last_opened_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"/c/{self.token}"

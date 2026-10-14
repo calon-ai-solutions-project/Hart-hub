@@ -50,7 +50,7 @@ def fake_codeweavers(outcomes=None):
                 raise outcome
             on_result(request, None if isinstance(outcome, Exception) else dict(outcome),
                       outcome if isinstance(outcome, Exception) else None)
-    return mock.patch.object(codeweavers, "get_quotes", side_effect=get_quotes), seen
+    return mock.patch.object(services, "fetch_quotes", side_effect=get_quotes), seen
 
 
 class ParseTests(SimpleTestCase):
@@ -202,7 +202,12 @@ class QuoteRulesTests(TestCase):
         self.assertTrue(quote.annual_mileage_applied)
         self.assertEqual(services.quote_json(quote)["customer"]["annual_mileage"], 8000)
 
+    def test_pcp_only_by_default(self):
+        self.quote(car(1))
+        self.assertEqual((self.seen[0].product, self.seen[0].fallback_product), ("(MotoNovo Finance) PCP", ""))
+
     def test_a_hire_purchase_fallback_is_recorded_and_explained_to_staff(self):
+        Setting.objects.create(key="codeweavers_fallback_product", value="(MotoNovo Finance) HP")  # only if switched on
         why = "No 48-month PCP on this car (the longest PCP term is DSG Prestige PCP up to 40 months), so HP was quoted."
         with mock.patch.dict(FIELDS, {"product_quoted": "(MotoNovo Finance) HP", "note": why}):
             (quote,) = self.quote(car(1))

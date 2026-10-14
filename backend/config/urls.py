@@ -16,8 +16,11 @@ urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path("api/", include("apps.sourcing.api.urls")),
     path("api/", include("apps.accounts.api")),
+    path("api/", include("apps.accounts.home")),
     path("api/", include("apps.chat.api.urls")),
     path("api/", include("apps.quotes.api")),
+    path("api/", include("apps.listings.api")),
+    path("api/", include("apps.enquiries.api")),
 ]
 if settings.DEBUG:  # local development only: photos come from backend/media
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
