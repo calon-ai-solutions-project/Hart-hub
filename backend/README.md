@@ -58,7 +58,7 @@ Rules the hub enforces, whatever the runner does:
 ## Stock chatbot
 
 The page is the React app in `../web` (`npm run dev`, then http://localhost:5173, staff login through
-`/api/auth/login`; see [web/README.md](../web/README.md)). The bot opens with the enquiry form; the answer is the five best live
+`/api/auth/login`; see [web/README.md](../web/README.md)). Staff type what the customer wants (the enquiry form is no longer in the chat); the answer is the five best live
 cars, each with the reason it was picked. Follow-ups such as "only black" or "any make under £15k"
 refine the same request.
 

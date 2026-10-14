@@ -8,10 +8,14 @@ from apps.matching.services.cards import customer_card, staff_card
 
 from .models import Conversation, Message
 
-GREETING = "Hi, what are you looking for? Let me know and I’ll send you some options ASAP!"
+# The staff chat opens with a plain message. The enquiry form is no longer shown in the chat: a customer
+# gets it as a link (the WhatsApp flow), and staff simply type what the customer wants.
+GREETING = ("Hi, what is the customer looking for? Type it in your own words, for example "
+            "“BMW 1 Series, automatic, £300 a month, £2,000 deposit”.")
 # Fixed wording, added by code. AI never writes or changes anything about finance.
 BONUS = ("Bonus: With any car purchased through us, your first payment isn’t due until 30 days after signing "
          "the agreement—effectively making your first month free!")
+# The enquiry form's fields: still used to read a submitted form and show it in the thread.
 FORM_FIELDS = [
     {"name": "make_model", "label": "Make & Model", "placeholder": "e.g. BMW 1 Series"},
     {"name": "colour", "label": "Preferred Colour", "placeholder": "e.g. Black"},
@@ -38,8 +42,8 @@ REMOVALS = {
 def start_conversation(user):
     with transaction.atomic():
         conversation = Conversation.objects.create(user=user)
-        Message.objects.create(conversation=conversation, role=Message.Role.BOT, kind=Message.Kind.FORM,
-                               body=GREETING, payload={"fields": FORM_FIELDS, "bonus": BONUS})
+        Message.objects.create(conversation=conversation, role=Message.Role.BOT, kind=Message.Kind.TEXT,
+                               body=GREETING)
     return conversation
 
 

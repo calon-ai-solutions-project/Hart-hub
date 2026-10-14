@@ -146,8 +146,8 @@ class RunLifecycleTests(TestCase):
         self.assertEqual(Listing.objects.count(), 2)  # the alert's row was updated, not duplicated
         self.assertEqual((listing.details_status, listing.status, listing.make), ("complete", "ending_soon", "Testmake"))
         self.assertEqual(listing.buy_price_pence, 1389000)
-        self.assertEqual(listing.suggested_price_pence, 1389000 + 110000 + 200000)
-        self.assertEqual(listing.margin_pence, 200000)
+        self.assertEqual(listing.suggested_price_pence, 1389000 + 150000)  # platform price + markup
+        self.assertEqual(listing.margin_pence, 40000)  # markup less prep cost
         self.assertEqual(listing.photos.count(), 2)
         self.assertEqual(listing.last_run, run)
 
@@ -196,7 +196,7 @@ class ScrapeThenSyncTests(TestCase):
 
     def test_scraped_car_is_stored_complete_and_priced(self):
         self.assertEqual((self.car.source, self.car.details_status, self.car.url), ("search", "complete", URL_4))
-        self.assertEqual(self.car.suggested_price_pence, 1389000 + 110000 + 200000)
+        self.assertEqual(self.car.suggested_price_pence, 1389000 + 150000)  # platform price + markup
         again, created = save_scraped("motorway", {**fixtures.MOTORWAY, "display_price": 14000})
         self.assertFalse(created)
         self.assertEqual((Listing.objects.count(), again.buy_price_pence), (1, 1400000))

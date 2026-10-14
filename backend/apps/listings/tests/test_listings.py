@@ -16,20 +16,20 @@ def listing(external_id, **fields):
 
 
 class PricingTests(TestCase):
-    def test_suggested_price_is_buy_plus_prep_plus_target_margin(self):
+    def test_customer_price_is_platform_price_plus_the_markup(self):
         car = price_listing(Listing(buy_price_pence=1500000))
         self.assertEqual((car.prep_cost_pence, car.suggested_price_pence, car.margin_pence),
-                         (110000, 1810000, 200000))
+                         (110000, 1650000, 40000))  # +£1,500; margin is what is left after prep
 
     def test_defaults_come_from_settings_rows(self):
         Setting.objects.create(key="prep_cost_pence", value=90000)
-        Setting.objects.create(key="target_margin_pence", value=150000)
+        Setting.objects.create(key="markup_pence", value=200000)
         car = price_listing(Listing(buy_price_pence=1000000))
-        self.assertEqual((car.prep_cost_pence, car.suggested_price_pence), (90000, 1240000))
+        self.assertEqual((car.prep_cost_pence, car.suggested_price_pence), (90000, 1200000))
 
     def test_per_car_prep_cost_and_a_price_set_by_a_person_are_kept(self):
         car = price_listing(Listing(buy_price_pence=1000000, prep_cost_pence=50000))
-        self.assertEqual(car.suggested_price_pence, 1250000)
+        self.assertEqual((car.suggested_price_pence, car.margin_pence), (1150000, 100000))
         car = price_listing(Listing(buy_price_pence=1000000, suggested_price_pence=1999900, price_overridden=True))
         self.assertEqual(car.suggested_price_pence, 1999900)
 
@@ -37,6 +37,18 @@ class PricingTests(TestCase):
         car = price_listing(Listing())
         self.assertIsNone(car.suggested_price_pence)
         self.assertIsNone(car.margin_pence)
+
+
+class RepriceTests(TestCase):
+    def test_changing_the_markup_reprices_cars_but_keeps_prices_set_by_hand(self):
+        from django.core.management import call_command
+
+        car = listing("1", buy_price_pence=1000000, suggested_price_pence=1310000)
+        by_hand = listing("2", buy_price_pence=1000000, suggested_price_pence=1999900, price_overridden=True)
+        call_command("reprice_listings", verbosity=0)
+        car.refresh_from_db()
+        by_hand.refresh_from_db()
+        self.assertEqual((car.suggested_price_pence, by_hand.suggested_price_pence), (1150000, 1999900))
 
 
 class ExpiryTests(TestCase):

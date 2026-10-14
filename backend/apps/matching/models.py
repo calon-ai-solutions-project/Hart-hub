@@ -23,12 +23,14 @@ class Requirement(TimeStampedModel):
     monthly_budget_pence = models.IntegerField(null=True, blank=True)
     max_price_pence = models.IntegerField(null=True, blank=True, help_text="A cash budget, if one was given")
     needed_by = models.CharField(max_length=120, blank=True)
+    part_exchange = models.CharField(max_length=120, blank=True, default="", db_default="",
+                                     help_text="The car the customer wants to trade in, as they described it")
     sort = models.CharField(max_length=10, blank=True, choices=[
         ("", "Best match"), ("price", "Cheapest first"), ("year", "Newest first"), ("mileage", "Lowest mileage")])
     notes = models.TextField(blank=True, help_text="What was typed, for matching loose wording (trim, spec)")
 
     FIELDS = ("make", "model", "colours", "colour_only", "gearbox", "deposit_pence", "monthly_budget_pence",
-              "max_price_pence", "needed_by", "sort")
+              "max_price_pence", "needed_by", "part_exchange", "sort")
 
     def __str__(self):
         return f"{self.make} {self.model}".strip() or "Any car"

@@ -2,6 +2,7 @@
 'Manual Transmission'), so filters compare these keys, never the raw text."""
 
 import re
+from difflib import SequenceMatcher
 
 MAKE_ALIASES = {
     "mercedes": "mercedesbenz", "merc": "mercedesbenz", "mercedesamg": "mercedesbenz",
@@ -41,15 +42,27 @@ def colour_key(colour):
     return next((c for c in COLOURS if c in words), "")
 
 
+def same_word(wanted, have):
+    """The same word, allowing a slip of the keyboard in a long word: 'seris' is 'series'.
+
+    Short words and anything with a digit must match exactly, so 'CLA' is never 'SLK' and 'A1' is never 'A180'.
+    """
+    if wanted == have:
+        return True
+    if len(wanted) < 5 or not (wanted.isalpha() and have.isalpha()):
+        return False
+    return SequenceMatcher(None, wanted, have).ratio() >= 0.8
+
+
 def model_matches(wanted, model, trim=""):
     """Does a listing's model (and trim) fit the model a customer asked for?
 
-    'A Class' fits 'A-Class'; 'CLA' fits 'CLA 220 AMG'; 'A1' does not fit 'A180'.
+    'A Class' fits 'A-Class'; 'CLA' fits 'CLA 220 AMG'; 'A1' does not fit 'A180'; '1 Seris' fits '1 Series'.
     """
     want, have = [NUMBER_WORDS.get(word, word) for word in tokens(wanted)], tokens(f"{model} {trim}")
     if not want:
         return True
-    if have[:len(want)] == want:
+    if len(have) >= len(want) and all(same_word(w, h) for w, h in zip(want, have)):
         return True
     joined = "".join(want)
     return len(joined) >= 4 and "".join(have).startswith(joined)

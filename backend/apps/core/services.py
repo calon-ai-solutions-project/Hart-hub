@@ -11,7 +11,7 @@ UK = ZoneInfo(django_settings.UK_TIME_ZONE)
 # Starting values; each can be overridden by a row in `settings` without new code.
 DEFAULTS = {
     "prep_cost_pence": 110000,
-    "target_margin_pence": 200000,  # to confirm with James (onboarding form)
+    "markup_pence": 150000,  # added to the platform price to make the customer price
     "ending_soon_hours": 24,
     "sync_delete_sold_listings": True,
     "sync_slot_motorway": "16:45",
@@ -33,8 +33,10 @@ DEFAULTS = {
 }
 
 DESCRIPTIONS = {
-    "prep_cost_pence": "Prep cost per car, in pence (110000 = £1,100). Editable per car on the listing.",
-    "target_margin_pence": "Target margin in pence. Selling price = buy price + prep cost + this.",
+    "prep_cost_pence": "Prep cost per car, in pence (110000 = £1,100). Editable per car on the listing. It is not "
+                       "added to the price: margin = markup - prep cost.",
+    "markup_pence": "Added to the platform (buy) price to make the customer price, in pence (150000 = £1,500). "
+                    "After changing it run: python manage.py reprice_listings",
     "ending_soon_hours": "A car with less than this many hours left is flagged 'ending soon'.",
     "sync_delete_sold_listings": "true: a car whose page has gone from the platform (sold or withdrawn) is deleted "
                                  "at the sync, with its photos and quotes. false: it is kept and marked ended.",

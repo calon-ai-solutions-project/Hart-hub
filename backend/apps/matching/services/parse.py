@@ -125,6 +125,9 @@ def from_form(form):
     needed = str(form.get("needed_by") or "").strip()
     if needed.lower() not in NOTHING:
         fields["needed_by"] = needed[:120]
+    trade_in = str(form.get("part_exchange") or "").strip()
+    if trade_in.lower() not in NOTHING:
+        fields["part_exchange"] = trade_in[:120]  # kept for the salesperson; it does not change the search
     return fields
 
 
@@ -162,6 +165,12 @@ def from_text(text):
             fields[key] = to_pence("".join(g or "" for g in found.groups()))
             rest = rest.replace(found.group(0), " ", 1)
 
+    # a mileage is not money: "under 40k miles" asks for low-mileage cars, not a £40,000 budget
+    low_mileage = re.search(rf"{MONEY}\s*(?:miles?\b|mileage\b|mi\b)", rest, re.I)
+    if low_mileage:
+        rest = re.sub(rf"(?:under|max(?:imum)?|up to|below|less than)?\s*{re.escape(low_mileage.group(0))}", " ", rest, count=1)
+        fields["sort"] = "mileage"
+
     take(rf"deposit(?: of| is)?\s*{MONEY}", "deposit_pence")
     if "deposit_pence" not in fields:
         take(rf"{MONEY}\s*deposit", "deposit_pence")
@@ -182,6 +191,8 @@ def from_text(text):
         if re.search(pattern, rest):
             fields["sort"] = order
             break
+    if low_mileage:
+        fields.setdefault("sort", "mileage")
     if gearbox_of(rest):
         fields["gearbox"] = gearbox_of(rest)
     make, model = split_make_model(rest)

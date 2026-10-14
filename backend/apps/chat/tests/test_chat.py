@@ -43,15 +43,12 @@ class ChatApiTests(TestCase):
         anonymous = APIClient()
         self.assertIn(anonymous.post("/api/chat/conversations").status_code, (401, 403))
 
-    def test_chat_starts_with_the_enquiry_form(self):
+    def test_chat_starts_with_a_plain_greeting_not_a_form(self):
         conversation = self.start()
         greeting = conversation["messages"][0]
-        self.assertEqual((greeting["role"], greeting["kind"]), ("bot", "form"))
-        self.assertEqual(greeting["body"], "Hi, what are you looking for? Let me know and I’ll send you some options ASAP!")
-        self.assertEqual([f["label"] for f in greeting["payload"]["fields"]],
-                         ["Make & Model", "Preferred Colour", "Auto or Manual", "Deposit (if any)",
-                          "Max Monthly Budget", "When do you need it by?"])
-        self.assertTrue(greeting["payload"]["bonus"].startswith("Bonus: With any car purchased through us"))
+        self.assertEqual((greeting["role"], greeting["kind"]), ("bot", "text"))
+        self.assertTrue(greeting["body"].startswith("Hi, what is the customer looking for?"))
+        self.assertEqual(greeting["payload"], {})  # no form fields: the form is not part of the chat any more
 
     def test_form_returns_the_five_best_cars(self):
         conversation = self.start()

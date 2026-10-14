@@ -1,6 +1,6 @@
 # Hart Hub web
 
-The staff portal's frontend: React + Vite. Today it holds the stock chatbot (enquiry form, the five
+The staff portal's frontend: React + Vite. Today it holds the stock chatbot (staff type the request, the five
 best cars, Codeweavers finance quotes and their PDFs). It only talks to the backend's API.
 
 ## Layout
@@ -12,7 +12,7 @@ src/main.jsx            entry
 src/App.jsx             who is signed in: sign-in screen or the chat
 src/api/client.js       every API call (session cookie + CSRF token)
 src/hooks/useChat.js    chat state: list, open chat, ticked cars, sending, quotes
-src/components/         ChatPage, Sidebar, Message, EnquiryForm, CarCard, QuoteCard, QuoteList,
+src/components/         ChatPage, Sidebar, Message, CarCard, QuoteCard, QuoteList,
                         Dock (selection bar, filters, composer), Dialogs, LoginPage, Icon
 src/lib/format.js       money, miles, UK dates
 src/styles/             app.css (the Hart Hub palette), login.css

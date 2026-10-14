@@ -1,29 +1,24 @@
 import { timeOf } from "../lib/format.js";
 import CarCard from "./CarCard.jsx";
-import EnquiryForm from "./EnquiryForm.jsx";
 import QuoteList from "./QuoteList.jsx";
 
-/** One message in the thread: plain text, the enquiry form, car options, or finance quotes. */
+/** One message in the thread: plain text, car options, or finance quotes. */
 export default function Message({ message, latest, picked, onTogglePick, onSend, onPreview }) {
   const payload = message.payload || {};
-  const isForm = message.kind === "form";
 
   return (
     <div className={`row ${message.role}`}>
-      {isForm ? (
-        <EnquiryForm message={message} onSubmit={(form) => onSend({ form })} />
-      ) : (
-        <div className="bubble">
-          {message.body}
-          {message.kind === "options" && (
-            <ul className="notes">
-              {payload.notes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {/* an older chat may still open with the enquiry form message: it shows as its plain greeting */}
+      <div className="bubble">
+        {message.body}
+        {message.kind === "options" && (
+          <ul className="notes">
+            {payload.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {message.kind === "options" && payload.cards.length > 0 && (
         <div className="cards results">

@@ -13,10 +13,12 @@ import logging
 import queue
 import re
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.db import connection
 
 from apps.core.models import Setting
 
@@ -27,6 +29,27 @@ SESSION_FILE = SESSION_DIR / "session.json"
 PROPOSAL_SETTING = "codeweavers_proposal_url"  # the one proposal the Hub re-uses for every quote
 FRAME = "legacy-app-compatibility-iframe"
 ONE_AT_A_TIME = threading.Lock()  # one login, one browser
+LOCK_KEY = 7106202601  # any fixed number: the database lock every server process shares
+
+
+@contextmanager
+def one_session():
+    """One Codeweavers session at a time, across every server process (web workers and the job worker).
+
+    Codeweavers allows one session per login, so two quote runs at once would sign each other out.
+    A second run waits here until the first has finished.
+    """
+    with ONE_AT_A_TIME:
+        if connection.vendor != "postgresql":
+            yield
+            return
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_lock(%s)", [LOCK_KEY])
+        try:
+            yield
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_unlock(%s)", [LOCK_KEY])
 
 
 class QuoteError(Exception):
@@ -497,7 +520,7 @@ def get_quotes(requests, on_result):
         raise CodeweaversUnavailable("Codeweavers login is not set (CODEWEAVERS_* in the environment).")
     SESSION_DIR.mkdir(exist_ok=True)
     stored = Setting.objects.filter(key=PROPOSAL_SETTING).values_list("value", flat=True).first()
-    with ONE_AT_A_TIME:
+    with one_session():
         results = queue.Queue()
         threading.Thread(target=_browse, args=(list(requests), stored, results), daemon=True).start()
         fatal = None

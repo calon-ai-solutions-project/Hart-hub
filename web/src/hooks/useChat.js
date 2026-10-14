@@ -16,8 +16,8 @@ export default function useChat(notify, startFresh = false) {
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(""); // what the assistant is doing right now, in words
   const [loading, setLoading] = useState(true); // a chat is being opened
-  // The deposit box follows the enquiry form. Staff can type over it for one quote; it follows the
-  // form again as soon as the form's deposit changes.
+  // The deposit box follows the deposit in the customer's request. Staff can type over it for one
+  // quote; it follows the request again as soon as that deposit changes.
   const [deposit, setDeposit] = useState({ form: null, value: "", edited: false });
   const working = useRef(false);
 
@@ -134,7 +134,7 @@ export default function useChat(notify, startFresh = false) {
     setBusy(true);
     setTyping("Sending the cars to Codeweavers");
     try {
-      // an untouched box sends nothing, so the server uses the form's deposit; a typed one (even "0") wins
+      // an untouched box sends nothing, so the server uses the request's deposit; a typed one (even "0") wins
       const amount = deposit.edited ? deposit.value.trim() || "0" : "";
       const answer = await quotesApi.request([...picked], amount, current.id);
       setPicked(new Set());
@@ -172,8 +172,8 @@ export default function useChat(notify, startFresh = false) {
   const depositSource = deposit.edited
     ? "(changed for this quote)"
     : deposit.form
-      ? "(from the form)"
-      : "(none given in the form)";
+      ? "(from the request)"
+      : "(none given)";
 
   return {
     chats, current, messages, picked, busy, typing, loading, filters,

@@ -182,6 +182,9 @@ EMBEDDING_DIMENSIONS = 1536
 EMBEDDING_BATCH = 64
 AI_TIMEOUT_SECONDS = 30
 AI_MAX_OUTPUT_TOKENS = 600  # answers are small JSON objects
+# How much hidden "thinking" a model may do before it answers. Gemini thinks by default and, left alone,
+# spends the whole answer allowance on it, so the JSON comes back cut off. Empty = send nothing.
+AI_REASONING_EFFORT = env("AI_REASONING_EFFORT", default="minimal")
 
 # ---------------------------------------------------------------- codeweavers (finance quotes)
 

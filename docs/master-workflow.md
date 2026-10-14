@@ -149,8 +149,8 @@ BCA and Manheim slots are confirmed once we see when their alerts arrive.
 ### What we calculate
 
 - **Prep cost:** default £1,100, editable per car.
-- **Suggested selling price:** buy price + prep cost + target margin (from settings). The salesperson can change it.
-- **Margin:** selling price minus buy price minus prep cost. Green at £2,000 or more, amber £1,000 to £1,999, red below £1,000. Staff only.
+- **Customer price:** platform (buy) price + the markup setting (`markup_pence`, £1,500). The salesperson can change it. After changing the setting, `python manage.py reprice_listings` re-prices every car not priced by hand.
+- **Margin:** selling price minus buy price minus prep cost. Green at £2,000 or more, amber £1,000 to £1,999, red below £1,000. With a £1,500 markup and £1,100 prep the margin is £400, so the bands need Hart to confirm them. Staff only.
 
 ### Expiry and "available until" rules
 

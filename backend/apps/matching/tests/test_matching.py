@@ -44,6 +44,10 @@ class KeyTests(SimpleTestCase):
         self.assertFalse(keys.model_matches("A1", "A180"))
         self.assertFalse(keys.model_matches("1 Series", "3 Series"))
         self.assertTrue(keys.model_matches("one series", "1 Series"))
+        self.assertTrue(keys.model_matches("1 Seris", "1 Series", "118i M Sport"))  # a typing slip still finds the car
+        self.assertTrue(keys.model_matches("tigaun", "Tiguan"))
+        self.assertFalse(keys.model_matches("3 Seris", "1 Series"))
+        self.assertFalse(keys.model_matches("Focus", "Fiesta"))
 
 
 class ParseTests(TestCase):
@@ -53,6 +57,8 @@ class ParseTests(TestCase):
         self.assertEqual(fields, {"make": "BMW", "model": "1 Series", "colours": ["black", "grey"],
                                   "colour_only": False, "gearbox": "auto", "deposit_pence": 200000, "monthly_budget_pence": 30000,
                                   "needed_by": "End of the month"})
+        self.assertEqual(parse.from_form({"part_exchange": "2017 Ford Focus"}), {"part_exchange": "2017 Ford Focus"})
+        self.assertEqual(parse.from_form({"part_exchange": "none"}), {})
 
     def test_blank_and_none_answers_are_left_out(self):
         fields = parse.from_form({"make_model": "Mercedes A Class", "colour": "any", "gearbox": "Either",
@@ -70,6 +76,11 @@ class ParseTests(TestCase):
         self.assertEqual(parse.from_text("vw golf under £15k manual"),
                          {"make": "Volkswagen", "model": "Golf", "gearbox": "manual", "max_price_pence": 1500000})
         self.assertEqual(parse.from_text("only black"), {"colours": ["black"], "colour_only": True})
+        # a mileage is never read as a budget
+        self.assertEqual(parse.from_text("under 40k miles"), {"sort": "mileage"})
+        self.assertEqual(parse.from_text("less than 30,000 mileage, £2k deposit"),
+                         {"sort": "mileage", "deposit_pence": 200000})
+        self.assertEqual(parse.from_text("under £12,000"), {"max_price_pence": 1200000})
         self.assertEqual(parse.from_text("bmw one series auto")["model"], "1 Series")
         self.assertEqual(parse.from_text("any colour"), {"colours": [], "colour_only": False})
         self.assertEqual(parse.from_text("any make, automatic, under £20k"),

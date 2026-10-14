@@ -65,17 +65,20 @@ def complete_json(feature, prompt_version, system, user):
         raise AiUnavailable("AI is not configured (OPENROUTER_API_KEY and OPENROUTER_MODEL).")
     usage = AiUsage(feature=feature, model=settings.OPENROUTER_MODEL, prompt_version=prompt_version)
     try:
+        request = {
+            "model": settings.OPENROUTER_MODEL,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0,
+            "max_tokens": settings.AI_MAX_OUTPUT_TOKENS,
+            "response_format": {"type": "json_object"},
+            "usage": {"include": True},
+        }
+        if settings.AI_REASONING_EFFORT:
+            request["reasoning"] = {"effort": settings.AI_REASONING_EFFORT}
         response = requests.post(
             settings.OPENROUTER_URL,
             headers={"Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"},
-            json={
-                "model": settings.OPENROUTER_MODEL,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                "temperature": 0,
-                "max_tokens": settings.AI_MAX_OUTPUT_TOKENS,
-                "response_format": {"type": "json_object"},
-                "usage": {"include": True},
-            },
+            json=request,
             timeout=settings.AI_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
