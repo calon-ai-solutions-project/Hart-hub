@@ -45,6 +45,19 @@ def auth_headers():
     return {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"}
 
 
+def simulator_on():
+    """The portal's simulator: on when switched on, else only while WhatsApp is not connected."""
+    if settings.SIMULATOR_ENABLED is not None:
+        return settings.SIMULATOR_ENABLED
+    return not enabled()
+
+
+def channel():
+    """What the WhatsApp page shows about the channel."""
+    return {"connected": enabled(), "number": settings.WHATSAPP_BUSINESS_NUMBER if enabled() else "",
+            "real_customers": bool(settings.WHATSAPP_REAL_CUSTOMERS), "simulator": simulator_on()}
+
+
 def digits(phone):
     return "".join(ch for ch in str(phone or "") if ch.isdigit())
 

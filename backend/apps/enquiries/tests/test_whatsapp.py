@@ -155,11 +155,30 @@ class WhatsAppTests(TestCase):
             engine.say(enquiry, "hello")
         self.assertEqual(self.meta.sent, [])
 
+    @override_settings(SIMULATOR_ENABLED=True)
     def test_the_simulator_only_accepts_fake_numbers(self):
         api = APIClient()
         api.force_authenticate(get_user_model().objects.create_user("james@example.com", "a-long-test-password"))
         response = api.post("/api/sim/inbound", {"phone": "+447827000000", "text": "hi"}, format="json")
         self.assertEqual(response.status_code, 400)
+
+    def test_with_whatsapp_connected_the_page_shows_real_conversations_only(self):
+        api = APIClient()
+        api.force_authenticate(get_user_model().objects.create_user("james@example.com", "a-long-test-password"))
+        fake = Customer.objects.create(phone="+447700900999")
+        Enquiry.objects.create(customer=fake, channel="simulator", intent="car_enquiry", step="chatting")
+        real = Customer.objects.create(phone=TEST_PHONE)
+        Enquiry.objects.create(customer=real, channel="whatsapp", intent="car_enquiry", step="chatting")
+        data = api.get("/api/sim/enquiries?tab=bot").json()
+        self.assertEqual([e["phone"] for e in data["enquiries"]], [TEST_PHONE])
+        self.assertEqual(data["counts"]["bot"], 1)
+        self.assertEqual(data["channel"], {"connected": True, "number": "+447700900100", "real_customers": False,
+                                           "simulator": False})
+        # no typing as a customer and no clearing a conversation
+        self.assertEqual(api.post("/api/sim/inbound", {"phone": "+447700900999", "text": "hi"}, format="json")
+                         .status_code, 404)
+        self.assertEqual(api.delete(f"/api/sim/phones/{TEST_PHONE}").status_code, 404)
+        self.assertTrue(Customer.objects.filter(phone=TEST_PHONE).exists())
 
     def test_photos_and_voice_notes_reach_the_journey_as_a_note(self):
         found = whatsapp.incoming(call({"id": "wamid.p", "from": "447700900321", "type": "image", "image": {}}))

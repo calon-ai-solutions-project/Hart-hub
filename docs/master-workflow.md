@@ -265,8 +265,11 @@ If the customer does not reply, the CRM marks them "gone quiet" after 3 days, re
 
 ### Built so far (October 2026 demo)
 
-The journey runs on a channel-independent engine (`backend/apps/enquiries`): the portal's **WhatsApp
-simulator** (fake numbers 07700 900000 to 900999 only) and the **real WhatsApp Cloud API** (item 10).
+The journey runs on a channel-independent engine (`backend/apps/enquiries`): the **real WhatsApp Cloud API**
+(item 10) and, for development, the portal's **WhatsApp simulator** (fake numbers 07700 900000 to 900999 only).
+Once WhatsApp is connected the simulator is off (`SIMULATOR_ENABLED` overrides): the WhatsApp page shows real
+conversations only, read only, with each message's delivery (sent / not delivered / not sent), and the channel's
+status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
 
 1. **The first message is classified by AI** (Gemini through the metered client, prompt `intent-v1` with
    a 30-example eval set: `python manage.py eval_intent`). Car enquiry or finance → the chatbot. A plain

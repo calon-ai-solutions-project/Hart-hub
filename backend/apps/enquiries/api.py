@@ -17,7 +17,7 @@ from apps.accounts.permissions import CanSell, CanView, enquiries_for, may_work_
 from apps.core.services import emit_event, get_setting
 
 from .models import Customer, Enquiry, EnquiryMessage
-from .services import engine
+from .services import engine, whatsapp
 from .webhook import webhook
 
 TABS = {
@@ -29,7 +29,7 @@ TABS = {
 
 def message_json(message):
     return {"id": str(message.id), "direction": message.direction, "sender": message.sender, "body": message.body,
-            "media_url": message.media_url, "created_at": message.created_at,
+            "media_url": message.media_url, "created_at": message.created_at, "delivery": message.delivery,
             "staff_name": (message.sent_by.first_name or message.sent_by.email) if message.sent_by else ""}
 
 
@@ -88,6 +88,8 @@ class SimInboundView(APIView):
     permission_classes = [CanSell]  # typing as the customer is a demo tool for the selling roles
 
     def post(self, request):
+        if not whatsapp.simulator_on():
+            return Response({"detail": "The simulator is off: WhatsApp is connected."}, status=status.HTTP_404_NOT_FOUND)
         serializer = InboundSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = engine.handle_inbound(serializer.validated_data["phone"], serializer.validated_data["text"],
@@ -113,6 +115,8 @@ class SimPhoneView(APIView):
 
     def delete(self, request, phone):
         """Start a demo number again from nothing. Simulator numbers only."""
+        if not whatsapp.simulator_on():  # real conversations are never cleared from the portal
+            return Response({"detail": "The simulator is off: WhatsApp is connected."}, status=status.HTTP_404_NOT_FOUND)
         if not CanSell().has_permission(request, self):
             return Response({"detail": "Your role is read only."}, status=status.HTTP_403_FORBIDDEN)
         phone = engine.e164(phone)
@@ -131,6 +135,8 @@ class EnquiryListView(APIView):
 
     def get(self, request):
         enquiries = enquiries_for(request.user, Enquiry.objects.select_related("customer", "assigned_to"))
+        if not whatsapp.simulator_on():
+            enquiries = enquiries.exclude(channel="simulator")  # real conversations only
         counts = enquiries.aggregate(**{tab: Count("id", filter=Q(step__in=steps)) for tab, steps in TABS.items()})
         tab = request.query_params.get("tab", "bot")
         latest = EnquiryMessage.objects.filter(enquiry=OuterRef("pk")).order_by("-created_at")
@@ -143,7 +149,7 @@ class EnquiryListView(APIView):
             row["last_message"] = {"body": " ".join((e.last_body or "").split())[:90], "direction": e.last_direction,
                                    "at": e.last_at}
             rows.append(row)
-        return Response({"counts": counts, "enquiries": rows})
+        return Response({"counts": counts, "enquiries": rows, "channel": whatsapp.channel()})
 
 
 class EnquiryView(APIView):

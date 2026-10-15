@@ -64,8 +64,11 @@ function Rich({ text }) {
   ));
 }
 
-/** The customer's side: their WhatsApp, for the number of the enquiry that is open. */
-function Phone({ phone, onActivity, readOnly }) {
+// how a message the Hub sent got on with WhatsApp
+const DELIVERY = { sent: ["✓", "Sent"], failed: ["!", "Not delivered"], skipped: ["–", "Not sent (not a test number)"] };
+
+/** The customer's side of the chat. In the simulator staff type as the customer; on real WhatsApp it is read only. */
+function Phone({ phone, onActivity, readOnly, live }) {
   const [messages, setMessages] = useState([]);
   const [notes, setNotes] = useState([]); // what the Hub did with messages it does not store
   const [text, setText] = useState("");
@@ -117,9 +120,9 @@ function Phone({ phone, onActivity, readOnly }) {
           <span className="avatar">{phone.slice(-2)}</span>
           <div className="wa-who">
             <b>{pretty(phone)}</b>
-            <small>Test customer</small>
+            <small>{live ? "WhatsApp customer" : "Test customer"}</small>
           </div>
-          {!readOnly && !empty && (
+          {!readOnly && !live && !empty && (
             <button type="button" className="wa-clear" onClick={clear} title="Start this number again">
               Clear
             </button>
@@ -134,7 +137,14 @@ function Phone({ phone, onActivity, readOnly }) {
               )}
               {message.media_url && <img className="wa-photo" src={message.media_url} alt="" loading="lazy" />}
               <Rich text={message.body} />
-              <span className="wa-time">{timeOf(message.created_at)}</span>
+              <span className="wa-time">
+                {timeOf(message.created_at)}
+                {message.direction === "out" && DELIVERY[message.delivery] && (
+                  <span className={`wa-tick ${message.delivery}`} title={DELIVERY[message.delivery][1]}>
+                    {" "}{DELIVERY[message.delivery][0]}
+                  </span>
+                )}
+              </span>
             </div>
           ))}
           {notes.map((note) => (
@@ -149,7 +159,9 @@ function Phone({ phone, onActivity, readOnly }) {
             </div>
           ))}
         </div>
-        {readOnly ? (
+        {live ? (
+          <div className="wa-composer read-only">The Hub replies automatically. To write yourself, use WhatsApp on the business phone.</div>
+        ) : readOnly ? (
           <div className="wa-composer read-only">Read only: your role can view conversations, not send.</div>
         ) : (
           <form className="wa-composer" onSubmit={(event) => { event.preventDefault(); send(text); }}>
@@ -570,8 +582,16 @@ export default function SimulatorPage({ user, onSignOut }) {
     setPhone(testNumber());
   };
 
+  const channel = list.channel || {};
+  const simulator = Boolean(channel.simulator);
+  const status = simulator
+    ? ["sim", "Simulator · fake numbers"]
+    : channel.connected
+      ? ["live", `Live · ${pretty(channel.number)}${channel.real_customers ? "" : " · test numbers only"}`]
+      : ["off", "WhatsApp not connected"];
+
   const QUEUES = [
-    ["bot", "Bot handling", "Form, quoting and options"],
+    ["bot", "Bot handling", "Chatting, quoting and options"],
     ["person", "Needs a person", "MOTs, viewings, unsure"],
     ["chosen", "Chosen a car", "Hand-over to sales"],
   ];
@@ -584,11 +604,13 @@ export default function SimulatorPage({ user, onSignOut }) {
         <header className="wa-top">
           <div className="wa-title">
             <h1>WhatsApp enquiries</h1>
-            <span className="sim-pill">
-              <i /> Simulator · fake numbers{readOnly ? " · read only" : ""}
-            </span>
+            {list.channel && (
+              <span className={`sim-pill ${status[0]}`}>
+                <i /> {status[1]}{readOnly ? " · read only" : ""}
+              </span>
+            )}
           </div>
-          {!readOnly && (
+          {simulator && !readOnly && (
             <button type="button" className="btn primary" onClick={newCustomer}>
               + New test customer
             </button>
@@ -637,15 +659,15 @@ export default function SimulatorPage({ user, onSignOut }) {
           <EnquiryDetail detail={detail} user={user} onChange={setDetail} />
           <aside className="wa-phone" aria-label="Customer's WhatsApp">
             <div className="wa-phone-head">
-              <span>Customer view</span>
+              <span>Conversation</span>
               <small>What the customer sees on WhatsApp</small>
             </div>
             {phone ? (
-              <Phone key={phone} phone={phone} onActivity={onActivity} readOnly={readOnly} />
+              <Phone key={phone} phone={phone} onActivity={onActivity} readOnly={readOnly} live={!simulator} />
             ) : (
               <div className="phone-empty">
-                <p>Open an enquiry to see the customer's side of the chat.</p>
-                {!readOnly && (
+                <p>Open an enquiry to see the conversation.</p>
+                {simulator && !readOnly && (
                   <button type="button" className="btn ghost small" onClick={newCustomer}>
                     + New test customer
                   </button>

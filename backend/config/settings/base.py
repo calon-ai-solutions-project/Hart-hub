@@ -193,6 +193,8 @@ WHATSAPP_VERIFY_TOKEN = env("WHATSAPP_VERIFY_TOKEN", default="")
 # nothing about them is stored. Production sets WHATSAPP_REAL_CUSTOMERS=true.
 WHATSAPP_REAL_CUSTOMERS = env.bool("WHATSAPP_REAL_CUSTOMERS", default=False)
 WHATSAPP_TEST_NUMBERS = env.list("WHATSAPP_TEST_NUMBERS", default=[])
+# The portal's WhatsApp simulator (fake 07700 900xxx numbers). Default: on only while WhatsApp is not connected.
+SIMULATOR_ENABLED = env.bool("SIMULATOR_ENABLED", default=None)
 
 # ---------------------------------------------------------------- ai
 
