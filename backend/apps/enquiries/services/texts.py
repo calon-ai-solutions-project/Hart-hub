@@ -12,14 +12,57 @@ def pounds(pence):
     return f"£{pence / 100:,.0f}"
 
 
+GREETING = "Hi, thanks for messaging The Hart Group 👋 I can help you find your next car and get finance quotes."
+
+QUESTIONS = {
+    "make_model": "What car are you looking for? A make and model is perfect (e.g. *BMW 1 Series*), or just "
+                  "say *any*.",
+    "monthly_budget": "What monthly budget would you like to stay under? (e.g. *£300*)",
+    "deposit": "How much deposit could you put down? Reply *0* if none.",
+    "gearbox": "Automatic or manual? (or *either*)",
+    "part_exchange": "Do you have a car to part-exchange? If so, what is it? (or *no*)",
+}
+
+
+def noted(answers):
+    """What the customer just told us, said back to them in a line: 'BMW M4 · up to £400/month'."""
+    parts = []
+    if answers.get("make_model") and answers["make_model"] != "any":
+        parts.append(f"*{answers['make_model']}*")
+    if answers.get("monthly_budget"):
+        parts.append(f"up to {answers['monthly_budget']}/month")
+    if answers.get("deposit"):
+        parts.append("no deposit" if answers["deposit"] == "£0" else f"{answers['deposit']} deposit")
+    if answers.get("gearbox") in ("Auto", "Manual"):
+        parts.append("automatic" if answers["gearbox"] == "Auto" else "manual")
+    if answers.get("part_exchange") and answers["part_exchange"] != "none":
+        parts.append("with a part-exchange")
+    return " · ".join(parts)
+
+
+def chat_reply(question, new_answers, first=False):
+    """The bot's next message: a hello the first time, what it understood, then one question."""
+    lines = [GREETING] if first else []
+    said = noted(new_answers)
+    if said:
+        lines.append(f"Got it 👍 {said}")
+    lines.append(QUESTIONS[question])
+    return "\n\n".join(lines)
+
+
+def person_will_reply():
+    return "Thanks for your message 👍 One of our team will reply to you here shortly."
+
+
 def form_link(url):
     return ("Hi, thanks for getting in touch! 😊 So we can find exactly the right car for you, please fill in this "
             f"quick form (it takes about 1 minute):\n{url}")
 
 
-def thanks():
-    return ("Thank you, we've got your details ✅ Give us a little while and we'll be back with your options and "
-            "finance quotes.")
+def thanks(answers=None):
+    said = noted(answers or {})
+    return (f"Thank you, we've got your details ✅{chr(10) + said if said else ''}\n\nGive us a little while and "
+            "we'll be back with your options and finance quotes.")
 
 
 def still_working():

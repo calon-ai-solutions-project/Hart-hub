@@ -17,14 +17,16 @@ class Customer(UUIDModel):
 
 
 class Enquiry(TimeStampedModel):
-    """One customer journey on one channel: message -> form -> quotes -> 5 options -> hand-over.
+    """One customer journey on one channel: chat (or form) -> quotes -> 5 options -> hand-over.
 
-    Only the first message of a journey is read by AI. Every later message is handled by the step.
+    AI reads the first message and, while the Hub is chatting, each reply. It only extracts what the customer
+    asked for; every message the customer receives is written by code.
     """
 
     class Step(models.TextChoices):
+        CHATTING = "chatting", "Chatting: asking what they want"
         FORM_SENT = "form_sent", "Form link sent"
-        FORM_DONE = "form_done", "Form filled in"
+        FORM_DONE = "form_done", "Details received"
         QUOTING = "quoting", "Getting quotes"
         AWAITING_APPROVAL = "awaiting_approval", "Options ready: waiting for approval"
         OPTIONS_SENT = "options_sent", "Options sent"
@@ -38,7 +40,7 @@ class Enquiry(TimeStampedModel):
         OTHER = "other_business", "Other business"
         UNSURE = "unsure", "Not sure"
 
-    BOT_STEPS = (Step.FORM_SENT, Step.FORM_DONE, Step.QUOTING, Step.AWAITING_APPROVAL, Step.OPTIONS_SENT)
+    BOT_STEPS = (Step.CHATTING, Step.FORM_SENT, Step.FORM_DONE, Step.QUOTING, Step.AWAITING_APPROVAL, Step.OPTIONS_SENT)
 
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="enquiries")
     channel = models.CharField(max_length=20, default="simulator", help_text="simulator now; whatsapp later")
@@ -48,6 +50,9 @@ class Enquiry(TimeStampedModel):
     intent_by = models.CharField(max_length=10, blank=True, help_text="ai or rules")
     step = models.CharField(max_length=20, choices=Step.choices)
     needs_person_reason = models.CharField(max_length=200, blank=True)
+    answers = models.JSONField(default=dict, db_default={}, blank=True,
+                               help_text="What the customer has told the chatbot so far, in the form's fields")
+    asked = models.JSONField(default=list, db_default=[], blank=True, help_text="The chatbot's questions already asked")
     form_token = models.CharField(max_length=32, unique=True, null=True, blank=True)
     form_sent_at = models.DateTimeField(null=True, blank=True)
     form_submitted_at = models.DateTimeField(null=True, blank=True)

@@ -187,14 +187,16 @@ function ago(iso) {
 }
 
 // the customer's journey, in order; a step is done once the enquiry has moved past it
-const JOURNEY = [
-  ["form_sent", "Form sent"],
-  ["form_done", "Form filled"],
+const AFTER_DETAILS = [
   ["quoting", "Quoting"],
   ["awaiting_approval", "Approval"],
   ["options_sent", "Options sent"],
   ["handed_over", "Car chosen"],
 ];
+const JOURNEY = {
+  chat: [["chatting", "Chatting"], ["form_done", "Details"], ...AFTER_DETAILS],
+  form: [["form_sent", "Form sent"], ["form_done", "Form filled"], ...AFTER_DETAILS],
+};
 
 /** When the car's deal ends, in UK time: the day, the time, and a warning colour when it is close. */
 function Ends({ at }) {
@@ -210,13 +212,14 @@ function Ends({ at }) {
   );
 }
 
-function Journey({ step }) {
-  const at = JOURNEY.findIndex(([key]) => key === step);
+function Journey({ step, by }) {
+  const steps = JOURNEY[by] || JOURNEY.chat;
+  const at = steps.findIndex(([key]) => key === step);
   if (at < 0) return null;
-  const finished = at === JOURNEY.length - 1; // the customer chose a car: every step is done
+  const finished = at === steps.length - 1; // the customer chose a car: every step is done
   return (
     <ol className="journey" aria-label="Where this customer is">
-      {JOURNEY.map(([key, label], i) => {
+      {steps.map(([key, label], i) => {
         const done = i < at || finished;
         return (
           <li key={key} className={done ? `done${i === at ? " last" : ""}` : i === at ? "now" : ""}>
@@ -307,7 +310,9 @@ function EnquiryDetail({ detail, user, onChange }) {
   }
 
   const request = detail.request;
-  const wants = request && [
+  const answers = detail.answers || {};
+  const said = (value) => ({ any: "Any", none: "None", Auto: "Automatic" })[value] || value;
+  const wants = request ? [
     ["Car", [request.make, request.model].filter(Boolean).join(" ") || request.notes || "Any car"],
     ["Colour", request.colours.join(", ")],
     ["Gearbox", { auto: "Automatic", manual: "Manual" }[request.gearbox]],
@@ -315,6 +320,14 @@ function EnquiryDetail({ detail, user, onChange }) {
     ["Deposit", request.deposit_pence != null && money(request.deposit_pence)],
     ["Needed by", request.needed_by],
     ["Part-exchange", request.part_exchange],
+  ].filter(([, value]) => value) : Object.keys(answers).length > 0 && [ // still chatting: what they've said so far
+    ["Car", said(answers.make_model)],
+    ["Monthly budget", answers.monthly_budget],
+    ["Deposit", answers.deposit],
+    ["Gearbox", said(answers.gearbox)],
+    ["Part-exchange", said(answers.part_exchange)],
+    ["Colour", answers.colour],
+    ["Needed by", answers.needed_by],
   ].filter(([, value]) => value);
 
   return (
@@ -336,7 +349,7 @@ function EnquiryDetail({ detail, user, onChange }) {
         <span className={`status big ${detail.step}`}>{detail.step_label}</span>
       </header>
 
-      <Journey step={detail.step} />
+      <Journey step={detail.step} by={detail.collected_by} />
       {detail.loading && (
         <div className="loading-rows" aria-label="Loading">
           <div className="skeleton" />
@@ -364,7 +377,7 @@ function EnquiryDetail({ detail, user, onChange }) {
 
       {wants && (
         <section className="wa-card">
-          <h3>Customer request</h3>
+          <h3>{request ? "Customer request" : "So far in the chat"}</h3>
           <dl className="facts">
             {wants.map(([name, value]) => (
               <div key={name}>

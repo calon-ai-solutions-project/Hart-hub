@@ -14,12 +14,13 @@ DEFAULTS = {
     "markup_pence": 150000,  # added to the platform price to make the customer price
     "ending_soon_hours": 24,
     "sync_delete_sold_listings": True,
-    "enquiry_min_confidence": 0.6,  # below this the Hub stays quiet and a person reads the message
+    "enquiry_min_confidence": 0.6,  # below this a first message counts as "not sure"
     "enquiry_quiet_days": 14,  # after this long without messages, a new message starts a new journey
     "enquiry_options": 5,  # cars sent to a customer
     "enquiry_max_quotes": 12,  # cars tried at Codeweavers before giving up
     "enquiry_auto_send": False,  # off: a person approves the options before they are sent
     "form_link_days": 7,  # how long the form link works
+    "enquiry_collect_by": "chat",  # chat: the chatbot asks what they want; form: a link to the one-page form
     "public_whatsapp_number": "",  # Hart's WhatsApp number in international form, e.g. 447700900100
     "sync_slot_motorway": "16:45",
     "sync_slot_carwow": "17:15",
@@ -46,8 +47,11 @@ DESCRIPTIONS = {
     "markup_pence": "Added to the platform (buy) price to make the customer price, in pence (150000 = £1,500). "
                     "After changing it run: python manage.py reprice_listings",
     "ending_soon_hours": "A car with less than this many hours left is flagged 'ending soon'.",
-    "enquiry_min_confidence": "How sure (0 to 1) the AI must be about a first message before the Hub replies. "
-                              "Below it, the Hub stays quiet and the message waits for a person.",
+    "enquiry_min_confidence": "How sure (0 to 1) the AI must be about a first message. Below it the message "
+                              "counts as 'not sure': the chatbot greets them and asks what they're looking for "
+                              "(with the form setting, it waits for a person instead).",
+    "enquiry_collect_by": "chat: the WhatsApp chatbot asks the customer what car they want, one question at a "
+                          "time. form: the Hub sends a link to the one-page enquiry form instead.",
     "enquiry_quiet_days": "After this many days without messages, a customer's next message starts a new journey.",
     "enquiry_options": "How many quoted cars are sent to a customer.",
     "enquiry_max_quotes": "How many cars are tried at Codeweavers per customer before giving up (about 45 seconds each).",

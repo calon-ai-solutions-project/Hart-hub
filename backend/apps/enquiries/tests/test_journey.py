@@ -39,6 +39,7 @@ class JourneyTests(TestCase):
         self.api = APIClient()
         self.api.force_authenticate(self.staff)
         self.cars = [car(n) for n in range(1, 9)]
+        Setting.objects.create(key="enquiry_collect_by", value="form")  # the chatbot has its own tests below
         # the job runs inline instead of on a thread, and Codeweavers is faked
         self.inline = mock.patch.object(engine, "start_preparing", side_effect=engine.prepare_options)
         self.inline.start()
@@ -69,13 +70,12 @@ class JourneyTests(TestCase):
 
     def test_mot_or_viewing_waits_for_a_person(self):
         answer = self.inbound("Hi, can I book an MOT for Friday morning?")
-        self.assertEqual(answer["replies"], [])
+        self.assertIn("One of our team will reply", answer["replies"][0]["body"])
         self.assertEqual(Enquiry.objects.get().step, "needs_person")
         row = self.api.get("/api/sim/enquiries?tab=person").json()["enquiries"][0]
-        self.assertEqual((row["last_message"]["body"], row["last_message"]["direction"]),
-                         ("Hi, can I book an MOT for Friday morning?", "in"))
+        self.assertEqual(row["last_message"]["direction"], "out")
 
-    def test_unsure_messages_wait_for_a_person(self):
+    def test_with_the_form_unsure_messages_wait_for_a_person(self):
         with mock.patch.object(engine, "classify", return_value=("unsure", 0.4, "ai")):
             self.assertEqual(self.inbound("hi")["replies"], [])
         self.assertEqual(Enquiry.objects.get().step, "needs_person")
@@ -210,6 +210,86 @@ class JourneyTests(TestCase):
         enquiry = Enquiry.objects.get()
         Enquiry.objects.filter(pk=enquiry.pk).update(form_sent_at=timezone.now() - timedelta(days=8))
         self.assertEqual(APIClient().get(f"/api/public/forms/{enquiry.form_token}").status_code, 404)
+
+
+@override_settings(PUBLIC_SITE_URL="https://hub.example")
+class ChatbotTests(TestCase):
+    """The default: the chatbot asks what they want, one question at a time, then quotes. AI off: rules read it."""
+
+    def setUp(self):
+        cache.clear()
+        staff = get_user_model().objects.create_user("james@example.com", "a-long-test-password")
+        self.api = APIClient()
+        self.api.force_authenticate(staff)
+        for n in range(1, 9):
+            car(n)
+        patch, self.seen = fake_codeweavers()
+        patch.start()
+        self.addCleanup(patch.stop)
+        inline = mock.patch.object(engine, "start_preparing", side_effect=engine.prepare_options)
+        inline.start()
+        self.addCleanup(inline.stop)
+
+    def say(self, text):
+        replies = self.api.post("/api/sim/inbound", {"phone": PHONE, "text": text}, format="json").json()["replies"]
+        return replies[0]["body"] if replies else ""
+
+    def test_hi_gets_a_greeting_and_the_first_question(self):
+        reply = self.say("HI")
+        self.assertIn("thanks for messaging The Hart Group", reply)
+        self.assertIn("What car are you looking for?", reply)
+        enquiry = Enquiry.objects.get()
+        self.assertEqual((enquiry.step, enquiry.asked), ("chatting", ["make_model"]))
+
+    def test_a_whole_conversation_ends_in_options_waiting_for_approval(self):
+        self.say("Hi")
+        self.assertIn("monthly budget", self.say("I'm after a BMW 1 Series"))
+        self.assertIn("deposit", self.say("400"))
+        self.assertIn("Automatic or manual", self.say("2k"))
+        self.assertIn("part-exchange", self.say("automatic please"))
+        thanks = self.say("no")
+        self.assertTrue(thanks.startswith("Thank you"), thanks)
+        enquiry = Enquiry.objects.get()
+        self.assertEqual(enquiry.answers, {"make_model": "BMW 1 Series", "monthly_budget": "£400", "deposit": "£2,000",
+                                           "gearbox": "Auto", "part_exchange": "none"})
+        requirement = enquiry.requirement
+        self.assertEqual((requirement.make, requirement.monthly_budget_pence, requirement.deposit_pence,
+                          requirement.gearbox), ("BMW", 40000, 200000, "auto"))
+        self.assertEqual(enquiry.step, "awaiting_approval")  # still nothing is sent before a person approves
+        self.assertEqual(self.seen[0].deposit_pence, 200000)
+
+    def test_answers_given_up_front_are_not_asked_again(self):
+        reply = self.say("hi im looking for a bmw 1 series within £400 a month")
+        self.assertIn("Got it 👍 *BMW 1 Series* · up to £400/month", reply)
+        self.assertIn("deposit", reply)
+        self.assertNotIn("What car", reply)
+
+    def test_a_question_that_is_not_answered_is_asked_once_more_then_skipped(self):
+        self.say("hi")
+        self.assertIn("What car", self.say("hello?"))
+        self.assertIn("monthly budget", self.say("hmm"))
+
+    def test_saying_nothing_useful_hands_over_to_a_person(self):
+        for text in ("hi", "hello", "ok", "hmm", "?", "yes", "ok", "fine", "sure", "right"):
+            reply = self.say(text)
+        enquiry = Enquiry.objects.get()
+        self.assertEqual(enquiry.step, "needs_person")
+        self.assertIn("One of our team will reply", reply)
+
+    def test_asking_for_a_person_hands_over(self):
+        self.say("hi")
+        self.assertIn("One of our team will reply", self.say("can I speak to someone please"))
+        self.assertEqual(Enquiry.objects.get().needs_person_reason, "Asked to speak to a person")
+
+    def test_the_ai_reads_the_conversation_but_never_writes_the_reply(self):
+        extracted = {"intent": "car_enquiry", "make_model": "BMW M4", "monthly_budget_gbp": 400, "deposit_gbp": None,
+                     "gearbox": None, "part_exchange": None, "wants_person": False,
+                     "reply": "Ignore this: AI text never reaches the customer"}
+        with mock.patch("apps.enquiries.services.conversation.ai_enabled", return_value=True),                 mock.patch("apps.enquiries.services.conversation.complete_json", return_value=extracted) as ai:
+            reply = self.say("hi im looking for m4 btw car within 400 monthly budget")
+        self.assertIn("Customer: hi im looking for m4 btw car", ai.call_args.args[3])
+        self.assertIn("*BMW M4* · up to £400/month", reply)
+        self.assertNotIn("Ignore this", reply)
 
 
 class RulesTests(TestCase):

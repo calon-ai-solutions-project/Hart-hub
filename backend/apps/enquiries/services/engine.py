@@ -1,8 +1,9 @@
 """The customer journey, independent of the channel (the portal's simulator now, WhatsApp later).
 
-new message -> AI decides once -> form link -> form filled -> quote cars -> approve -> 5 options -> hand-over
+new message -> AI decides what it is -> chat (or form link) -> quote cars -> approve -> 5 options -> hand-over
 
-Only the first message of a journey is read by AI. Later messages are handled by the journey's step.
+AI classifies the first message, then reads the chat only to pull out what the customer wants; every word sent
+to the customer is written by code. After the chat, messages are handled by the journey's step.
 Personal messages are never stored. Nothing is sent outside WhatsApp's 24-hour window.
 """
 
@@ -23,7 +24,7 @@ from apps.matching.services.cards import customer_card, staff_card
 from apps.quotes import services as quotes
 from apps.quotes.models import Quote
 
-from . import texts
+from . import conversation, texts
 from .classify import classify
 from ..models import Customer, Enquiry, EnquiryMessage, EnquiryOption
 
@@ -98,13 +99,20 @@ def handle_inbound(phone, text, *, channel="simulator", business_number="", now=
         emit_event("enquiry.started", {"enquiry_id": str(enquiry.id), "intent": intent, "by": how,
                                        "confidence": confidence})
         replies = []
-        if intent in (Enquiry.Intent.CAR, Enquiry.Intent.FINANCE):
+        by_form = get_setting("enquiry_collect_by") == "form"
+        if intent == Enquiry.Intent.OTHER:  # a booking, viewing or complaint: a person answers
+            move(enquiry, Enquiry.Step.NEEDS_PERSON, "Not a car-buying enquiry")
+            replies.append(say(enquiry, texts.person_will_reply()))
+        elif by_form and intent in (Enquiry.Intent.CAR, Enquiry.Intent.FINANCE):
             enquiry.form_token, enquiry.form_sent_at = secrets.token_urlsafe(12), now
             move(enquiry, Enquiry.Step.FORM_SENT)
             replies.append(say(enquiry, texts.form_link(form_url(enquiry))))
-        else:  # a booking, viewing, complaint, or anything the classifier was unsure about: a person answers
-            move(enquiry, Enquiry.Step.NEEDS_PERSON,
-                 "Not a car-buying enquiry" if intent == Enquiry.Intent.OTHER else "The Hub was not sure what this is")
+        elif by_form:
+            move(enquiry, Enquiry.Step.NEEDS_PERSON, "The Hub was not sure what this is")
+        else:  # a car enquiry, or just "hi": the chatbot asks what they are looking for
+            move(enquiry, Enquiry.Step.CHATTING)
+    if enquiry.step == Enquiry.Step.CHATTING:
+        replies = chat(enquiry, first=True)
     return {"ignored": False, "intent": intent, "enquiry": enquiry, "replies": replies}
 
 
@@ -115,6 +123,8 @@ def continue_journey(enquiry, text, now):
     enquiry.last_inbound_at = now
     enquiry.save()
     step = enquiry.step
+    if step == Enquiry.Step.CHATTING:
+        return chat(enquiry)
     if step == Enquiry.Step.FORM_SENT and not enquiry.nudged:
         enquiry.nudged = True
         enquiry.save()
@@ -129,6 +139,47 @@ def continue_journey(enquiry, text, now):
             return [hand_over(enquiry, number)]
         move(enquiry, Enquiry.Step.OPTIONS_SENT, "Replied to the options, but not with a car number")
     return []  # a person has the conversation, or the Hub has already said it is working on it
+
+
+def chat(enquiry, first=False):
+    """The chatbot's turn: read the conversation, keep what the customer has told us, then ask the next
+    question, or, once there is nothing left to ask, start finding and quoting cars."""
+    messages = list(enquiry.messages.all())
+    asked = list(enquiry.asked)
+    last_question = asked[-1] if asked else ""
+    intent, found, wants_person, how = conversation.understand(messages, last_question)
+    if intent == "personal" and not enquiry.answers and not found:
+        return []  # not for the business: no reply
+    if wants_person or (intent == "other_business" and not enquiry.answers and not found):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON,
+             "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
+        return [say(enquiry, texts.person_will_reply())]
+
+    new = {name: value for name, value in found.items() if enquiry.answers.get(name) != value}
+    enquiry.answers = {**enquiry.answers, **found}
+    if new and enquiry.intent == Enquiry.Intent.UNSURE:
+        enquiry.intent, enquiry.intent_by = Enquiry.Intent.CAR, how
+    emit_event("enquiry.chat", {"enquiry_id": str(enquiry.id), "by": how, "fields": sorted(new)})
+
+    # nothing new in answer to a question asked once: ask it again; otherwise move on to the next one
+    if not new and last_question and last_question not in enquiry.answers and asked.count(last_question) < 2:
+        question = last_question
+    else:
+        question = conversation.next_question(enquiry.answers, asked)
+    if question:
+        enquiry.asked = asked + [question]
+        enquiry.save()
+        return [say(enquiry, texts.chat_reply(question, new, first=first))]
+
+    wanted = {name for name, value in enquiry.answers.items() if value not in ("any", "none", "£0")}
+    if not {"make_model", "monthly_budget"} & wanted:
+        move(enquiry, Enquiry.Step.NEEDS_PERSON, "The chatbot could not find out what car they want")
+        return [say(enquiry, texts.person_will_reply())]
+    with transaction.atomic():
+        save_request(enquiry, enquiry.answers, timezone.now())
+    thanks = enquiry.messages.filter(direction=EnquiryMessage.Direction.OUT).last()
+    start_preparing(enquiry.id)
+    return [thanks]
 
 
 def chosen_number(enquiry, text):
@@ -171,22 +222,31 @@ def form_for(token, now=None):
 def submit_form(enquiry, answers, now=None):
     """The customer sent the form. Saves their request, thanks them and starts finding and quoting cars."""
     now = now or timezone.now()
-    answers = {name: str(answers.get(name) or "").strip()[:200] for name in FORM_FIELDS}
     with transaction.atomic():
         enquiry = Enquiry.objects.select_for_update().get(pk=enquiry.pk)
         if enquiry.form_submitted_at:
             return enquiry, False
-        requirement = Requirement(channel=enquiry.channel)
-        parse.apply_fields(requirement, parse.from_form(answers))
-        requirement.notes = answers["make_model"]
-        requirement.save()
-        enquiry.requirement, enquiry.form_submitted_at, enquiry.nudged = requirement, now, False
-        move(enquiry, Enquiry.Step.FORM_DONE)
-        say(enquiry, texts.thanks())
-        emit_event("requirement.saved", {"requirement_id": str(requirement.id), "channel": enquiry.channel,
-                                         "enquiry_id": str(enquiry.id)})
+        save_request(enquiry, answers, now)
     start_preparing(enquiry.id)
     return enquiry, True
+
+
+def save_request(enquiry, answers, now):
+    """What the customer wants, from the form or the chat -> a saved requirement; thanks them."""
+    answers = {name: str(answers.get(name) or "").strip()[:200] for name in FORM_FIELDS}
+    requirement = Requirement(channel=enquiry.channel)
+    fields = parse.from_form(answers)
+    if not fields.get("make"):  # "SUV" or "family car" is not a model: search by budget, keep their words in notes
+        fields.pop("model", None)
+    parse.apply_fields(requirement, fields)
+    requirement.notes = "" if answers["make_model"].lower() == "any" else answers["make_model"]
+    requirement.save()
+    enquiry.requirement, enquiry.form_submitted_at, enquiry.nudged = requirement, now, False
+    move(enquiry, Enquiry.Step.FORM_DONE)
+    say(enquiry, texts.thanks(answers if enquiry.asked else None))
+    emit_event("requirement.saved", {"requirement_id": str(requirement.id), "channel": enquiry.channel,
+                                     "enquiry_id": str(enquiry.id)})
+    return requirement
 
 
 # ---------------------------------------------------------------- find, quote, then send

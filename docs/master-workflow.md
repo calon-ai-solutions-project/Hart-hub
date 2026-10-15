@@ -268,22 +268,30 @@ If the customer does not reply, the CRM marks them "gone quiet" after 3 days, re
 The journey runs in the portal's **WhatsApp simulator** (fake numbers) on a channel-independent engine
 (`backend/apps/enquiries`); the real WhatsApp API plugs into the same engine later.
 
-1. **First message only is read by AI** (Gemini through the metered client, prompt `intent-v1` with a
-   30-example eval set: `python manage.py eval_intent`). Car enquiry or finance → the form link.
-   Other business (MOT, viewing, test drive, complaint) → no reply, "Needs a person". Personal → no reply
-   and **nothing stored**. Below `enquiry_min_confidence` (0.6) the Hub stays quiet and a person reads it.
-2. **Later messages are handled by the step, not AI:** one reminder of the form link; one "still working
-   on it"; after the options, a number ("2", "the second one", "the Audi") hands over to the salesperson
-   and the bot goes quiet.
-3. **One-time form link** (`/f/<code>`, `form_link_days` = 7): make & model, colour, needed by, gearbox,
-   monthly budget, deposit, part-exchange.
-4. **PCP only (14 Oct 2026):** only cars with a 48-month PCP quote are sent; no Hire Purchase.
+1. **The first message is classified by AI** (Gemini through the metered client, prompt `intent-v1` with
+   a 30-example eval set: `python manage.py eval_intent`). Car enquiry, finance, or a plain "hi" (below
+   `enquiry_min_confidence`, 0.6) → the chatbot. Other business (MOT, viewing, test drive, complaint) →
+   "One of our team will reply shortly" and "Needs a person". Personal → no reply and **nothing stored**.
+2. **Chatbot (14 Oct 2026, default `enquiry_collect_by` = `chat`):** asks, one at a time and only what it
+   doesn't know yet: make & model → monthly budget → deposit → gearbox → part-exchange. A customer can
+   answer several at once ("M4 within 400 a month"). An unanswered question is asked once more, then
+   skipped. AI (prompt `chat-v1`) only **reads** the conversation and returns the answers as data; every
+   message the customer receives is written by code, so AI never writes to a customer or states a finance
+   figure. Asking for a person, or ending with neither a car nor a budget → "Needs a person". Then the
+   details are saved as a requirement and quoting starts, as for the form. Visible in the portal as
+   "So far in the chat".
+3. **Later messages are handled by the step, not AI:** one "still working on it"; after the options, a
+   number ("2", "the second one", "the Audi") hands over to the salesperson and the bot goes quiet.
+4. **One-time form link** (only when `enquiry_collect_by` = `form`; `/f/<code>`, `form_link_days` = 7):
+   make & model, colour, needed by, gearbox, monthly budget, deposit, part-exchange. One reminder of the
+   link.
+5. **PCP only (14 Oct 2026):** only cars with a 48-month PCP quote are sent; no Hire Purchase.
    **Quote first, then send:** cars are tried at Codeweavers in ranked order with the form's deposit until
    `enquiry_options` (5) have a quote or `enquiry_max_quotes` (12) have been tried. Cars that cannot be
    quoted are skipped. None quoted → "Needs a person", nothing sent.
-5. **Approval:** the options wait for **Approve & send** unless the owner turns on `enquiry_auto_send`.
+6. **Approval:** the options wait for **Approve & send** unless the owner turns on `enquiry_auto_send`.
    Cars that ended meanwhile are dropped; outside the 24-hour window nothing is sent (template needed).
-6. **Messages built by code from the customer card and the Codeweavers figures:** an intro, one message per
+7. **Messages built by code from the customer card and the Codeweavers figures:** an intro, one message per
    car (first photo, details, monthly payment exactly as quoted, deal end, "more photos" link to
    `/c/<code>`), and a closing line with the disclaimer.
    **Needs sign-off:** on 14 Oct 2026 the price line and the FCA representative example were removed from
@@ -292,9 +300,9 @@ The journey runs in the portal's **WhatsApp simulator** (fake numbers) on a chan
    The same day the closing message lost its "Finance is subject to status" disclaimer and the first-payment
    bonus line; this is part of the same sign-off.
 
-7. **No quote documents:** quotes come from Codeweavers' API (figures, lender and terms, no PDF). Customers get
+8. **No quote documents:** quotes come from Codeweavers' API (figures, lender and terms, no PDF). Customers get
    the figures and representative example in the car messages; no PDF is shown to staff or sent to customers.
-8. **When a customer chooses a car** the dashboard shows an alert (banner, chime, browser tab title) for
+9. **When a customer chooses a car** the dashboard shows an alert (banner, chime, browser tab title) for
    whoever has the simulator open.
 
 Not built yet: real WhatsApp API and templates, the 2-hour form reminder, name/email/consent on the form,

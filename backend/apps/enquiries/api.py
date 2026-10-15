@@ -42,10 +42,12 @@ def enquiry_json(enquiry, full=False):
         "form_submitted_at": enquiry.form_submitted_at, "quotes_tried": enquiry.quotes_tried,
         "quoting_started_at": enquiry.quoting_started_at, "quoting_finished_at": enquiry.quoting_finished_at,
         "last_inbound_at": enquiry.last_inbound_at,
+        "collected_by": "form" if enquiry.form_token else "chat",
         "chosen_at": enquiry.updated_at if enquiry.step == Enquiry.Step.HANDED_OVER else None,
     }
     if full:
         data["messages"] = [message_json(m) for m in enquiry.messages.all()]
+        data["answers"] = enquiry.answers  # what the chatbot has found out so far
         options = list(enquiry.options.all())
         data["options"] = [{"number": o.number, "sent": o.sent, "customer": o.customer, "staff": o.staff}
                            for o in options]
