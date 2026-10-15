@@ -175,6 +175,25 @@ REST_FRAMEWORK = {
 # The address customers open (the web app). Car page links are built on it, e.g. <this>/c/7Kq2xYp9.
 PUBLIC_SITE_URL = env("PUBLIC_SITE_URL", default="http://localhost:5173").rstrip("/")
 
+# WhatsApp Cloud API, through Kapso (kapso.ai, the default) or straight from Meta. Without a key/token and phone
+# number ID the WhatsApp channel is off (the simulator still works).
+WHATSAPP_PROVIDER = env("WHATSAPP_PROVIDER", default="kapso")  # kapso | meta
+WHATSAPP_PHONE_NUMBER_ID = env("WHATSAPP_PHONE_NUMBER_ID", default="")
+WHATSAPP_BUSINESS_NUMBER = env("WHATSAPP_BUSINESS_NUMBER", default="")  # E.164, the number customers message
+# Kapso: the project API key, and the secret_key we chose for the Meta webhook (signs every call it forwards)
+KAPSO_API_KEY = env("KAPSO_API_KEY", default="")
+KAPSO_WEBHOOK_SECRET = env("KAPSO_WEBHOOK_SECRET", default="")
+KAPSO_API_URL = env("KAPSO_API_URL", default="https://api.kapso.ai/meta/whatsapp/v24.0").rstrip("/")
+# Meta directly: a system user token (starts "EAA"), the app secret, and our own webhook verify token
+WHATSAPP_GRAPH_URL = env("WHATSAPP_GRAPH_URL", default="https://graph.facebook.com/v21.0").rstrip("/")
+WHATSAPP_ACCESS_TOKEN = env("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_APP_SECRET = env("WHATSAPP_APP_SECRET", default="")
+WHATSAPP_VERIFY_TOKEN = env("WHATSAPP_VERIFY_TOKEN", default="")
+# Staging never talks to real customers: only these numbers are read and answered, everyone else is ignored and
+# nothing about them is stored. Production sets WHATSAPP_REAL_CUSTOMERS=true.
+WHATSAPP_REAL_CUSTOMERS = env.bool("WHATSAPP_REAL_CUSTOMERS", default=False)
+WHATSAPP_TEST_NUMBERS = env.list("WHATSAPP_TEST_NUMBERS", default=[])
+
 # ---------------------------------------------------------------- ai
 
 # The chatbot uses AI only when both are set; without them it falls back to rule-based matching.

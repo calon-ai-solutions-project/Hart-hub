@@ -21,6 +21,10 @@ DEFAULTS = {
     "enquiry_auto_send": False,  # off: a person approves the options before they are sent
     "form_link_days": 7,  # how long the form link works
     "enquiry_collect_by": "chat",  # chat: the chatbot asks what they want; form: a link to the one-page form
+    "enquiry_ai_replies": True,  # owner switch: the chatbot's replies are written by AI (checked by code)
+    "enquiry_ai_max_replies": 20,  # after this many bot replies in one enquiry, a person takes over
+    "business_facts": "",  # what the chatbot may tell customers about Hart (hours, address...); owner-approved
+    "enquiry_greeting_wait_seconds": 60,  # after a bare "hi", wait this long for more before asking what it's about
     "public_whatsapp_number": "",  # Hart's WhatsApp number in international form, e.g. 447700900100
     "sync_slot_motorway": "16:45",
     "sync_slot_carwow": "17:15",
@@ -57,6 +61,16 @@ DESCRIPTIONS = {
     "enquiry_max_quotes": "How many cars are tried at Codeweavers per customer before giving up (about 45 seconds each).",
     "enquiry_auto_send": "true: options go to the customer as soon as they are quoted. false: a person presses "
                          "'Approve & send'. Owner decision.",
+    "enquiry_ai_replies": "true: the WhatsApp chatbot is conversational: AI writes each reply, and code checks it "
+                          "before it is sent (no prices, monthly payments, rates, finance acceptance, stock or "
+                          "delivery promises, links). false: scripted questions. Owner decision.",
+    "enquiry_ai_max_replies": "After this many chatbot replies in one enquiry without enough details, a person "
+                              "takes over.",
+    "business_facts": "Facts the chatbot may tell customers about Hart (opening hours, address, what you offer). "
+                      "Anything not here, it says the team will confirm. Approved by the owner.",
+    "enquiry_greeting_wait_seconds": "When the first message is only a greeting ('hi', 'hello'), the chatbot waits "
+                                     "this many seconds for the customer to say more. If they don't, it asks "
+                                     "whether they want to buy a car or something else.",
     "form_link_days": "How many days the customer's form link keeps working.",
     "public_whatsapp_number": "Hart's WhatsApp Business number, digits only with the country code (447700900100). "
                               "Shown as the 'Reply on WhatsApp' button on the public car page; empty hides it.",

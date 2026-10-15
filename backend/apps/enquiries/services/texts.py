@@ -1,4 +1,6 @@
-"""Every message the Hub sends a customer, built by code. AI never writes customer wording or finance figures.
+"""The messages the Hub builds by code: the option messages, quotes, thanks and hand-overs, and the scripted
+chatbot questions. AI never writes these or any finance figure (the conversational chatbot's own replies are
+checked by conversation.guard).
 
 Customer messages are built ONLY from the customer card and the quote's customer figures.
 """
@@ -24,6 +26,15 @@ QUESTIONS = {
 }
 
 
+PURPOSE = ("Are you looking to buy a car? 🚗 Or is it something else we can help with, like a car you've "
+           "already seen, an MOT or a service?")
+
+
+def purpose(first=True):
+    """Sent when someone only said hello: what are they messaging about?"""
+    return f"{GREETING}\n\n{PURPOSE}" if first else PURPOSE
+
+
 def noted(answers):
     """What the customer just told us, said back to them in a line: 'BMW M4 · up to £400/month'."""
     parts = []
@@ -40,12 +51,14 @@ def noted(answers):
     return " · ".join(parts)
 
 
-def chat_reply(question, new_answers, first=False):
+def chat_reply(question, new_answers, first=False, buying=False):
     """The bot's next message: a hello the first time, what it understood, then one question."""
     lines = [GREETING] if first else []
     said = noted(new_answers)
     if said:
         lines.append(f"Got it 👍 {said}")
+    elif buying:  # they've just said yes, they want a car
+        lines.append("Great, we can help with that 👍")
     lines.append(QUESTIONS[question])
     return "\n\n".join(lines)
 

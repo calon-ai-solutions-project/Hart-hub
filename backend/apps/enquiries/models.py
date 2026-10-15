@@ -11,6 +11,8 @@ class Customer(UUIDModel):
     phone = models.CharField(max_length=20, unique=True, help_text="E.164, e.g. +447700900123")
     name = models.CharField(max_length=120, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
+    opted_out_at = models.DateTimeField(null=True, blank=True,
+                                        help_text="Sent STOP: no bot messages, and no campaigns on any channel")
 
     def __str__(self):
         return self.name or self.phone
@@ -94,6 +96,10 @@ class EnquiryMessage(UUIDModel):
     body = models.TextField()
     media_url = models.URLField(max_length=500, blank=True)
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    external_id = models.CharField(max_length=128, blank=True, db_default="",
+                                   help_text="WhatsApp's message id (wamid), once delivered to or received from Meta")
+    delivery = models.CharField(max_length=20, blank=True, db_default="",
+                                help_text="WhatsApp only: sent, failed, or skipped (not an allowed test number)")
 
     class Meta:
         ordering = ["created_at"]

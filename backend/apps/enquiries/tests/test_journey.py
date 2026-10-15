@@ -1,6 +1,7 @@
 """The customer journey end to end, with Codeweavers and AI faked. Fake numbers only (Ofcom drama range)."""
 
 import json
+import re
 from datetime import timedelta
 from unittest import mock
 
@@ -125,6 +126,7 @@ class JourneyTests(TestCase):
         self.assertIn("https://hub.example/c/", first)
         self.assertTrue(cars[0]["media_url"] == "" or "/api/public/cars/" in cars[0]["media_url"])
         customer_text = json.dumps([m["body"] + m["media_url"] for m in out]).lower()
+        customer_text = re.sub(r"/(c|cars)/[\w-]+", r"/\1/<code>", customer_text)  # a random link code can spell "buy"
         for word in STAFF_ONLY:  # nothing that reveals the source or the money behind the price
             self.assertNotIn(word.lower(), customer_text, word)
         self.assertIn("markup_pence", detail["options"][0]["staff"])  # staff still see it in the dashboard
@@ -234,12 +236,46 @@ class ChatbotTests(TestCase):
         replies = self.api.post("/api/sim/inbound", {"phone": PHONE, "text": text}, format="json").json()["replies"]
         return replies[0]["body"] if replies else ""
 
-    def test_hi_gets_a_greeting_and_the_first_question(self):
-        reply = self.say("HI")
-        self.assertIn("thanks for messaging The Hart Group", reply)
-        self.assertIn("What car are you looking for?", reply)
+    def minute_later(self, seconds=60):
+        """The greeting timer going off (the real one is a worker job or a thread)."""
         enquiry = Enquiry.objects.get()
-        self.assertEqual((enquiry.step, enquiry.asked), ("chatting", ["make_model"]))
+        message = engine.ask_purpose(enquiry.id, now=enquiry.last_inbound_at + timedelta(seconds=seconds))
+        return message.body if message else ""
+
+    def test_hi_waits_a_minute_then_asks_what_it_is_about(self):
+        with mock.patch.object(engine, "wait_then_ask_purpose") as timer, self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.say("HI"), "")  # no instant reply: they may be about to say more
+        timer.assert_called_once_with(Enquiry.objects.get().id)
+        self.assertEqual(self.minute_later(30), "")  # not yet
+        asked = self.minute_later()
+        self.assertIn("thanks for messaging The Hart Group", asked)
+        self.assertIn("Are you looking to buy a car?", asked)
+        self.assertEqual(self.minute_later(), "")  # asked once only
+        self.assertEqual(Enquiry.objects.get().asked, ["purpose"])
+
+    def test_saying_more_within_the_minute_is_answered_straight_away(self):
+        self.say("Hello")
+        reply = self.say("I'm looking for a BMW 1 Series")
+        self.assertIn("thanks for messaging The Hart Group", reply)  # the Hub's first message still says hello
+        self.assertIn("Got it 👍 *BMW 1 Series*", reply)
+        self.assertEqual(self.minute_later(), "")  # the timer finds it already answered
+
+    def test_yes_to_buying_a_car_starts_the_questions(self):
+        self.say("hi")
+        self.minute_later()
+        reply = self.say("yes")
+        self.assertIn("Great, we can help with that", reply)
+        self.assertIn("What car are you looking for?", reply)
+
+    def test_no_to_buying_a_car_goes_to_a_person(self):
+        self.say("hi")
+        self.minute_later()
+        self.assertIn("One of our team will reply", self.say("no, it's about my car's warranty"))
+        self.assertEqual(Enquiry.objects.get().step, "needs_person")
+
+    def test_a_second_hello_is_asked_what_it_is_about_at_once(self):
+        self.say("hi")
+        self.assertIn("Are you looking to buy a car?", self.say("hello?"))
 
     def test_a_whole_conversation_ends_in_options_waiting_for_approval(self):
         self.say("Hi")
@@ -266,15 +302,28 @@ class ChatbotTests(TestCase):
 
     def test_a_question_that_is_not_answered_is_asked_once_more_then_skipped(self):
         self.say("hi")
-        self.assertIn("What car", self.say("hello?"))
+        self.minute_later()
+        self.assertIn("What car", self.say("yes"))
+        self.assertIn("What car", self.say("hmm"))
         self.assertIn("monthly budget", self.say("hmm"))
 
-    def test_saying_nothing_useful_hands_over_to_a_person(self):
-        for text in ("hi", "hello", "ok", "hmm", "?", "yes", "ok", "fine", "sure", "right"):
-            reply = self.say(text)
+    def test_never_saying_what_it_is_about_hands_over_to_a_person(self):
+        self.say("hi")
+        self.assertIn("Are you looking to buy a car?", self.say("hello"))
+        self.assertIn("Are you looking to buy a car?", self.say("hmm"))
+        self.assertIn("One of our team will reply", self.say("?"))
         enquiry = Enquiry.objects.get()
-        self.assertEqual(enquiry.step, "needs_person")
-        self.assertIn("One of our team will reply", reply)
+        self.assertEqual((enquiry.step, enquiry.needs_person_reason),
+                         ("needs_person", "Did not say what they're messaging about"))
+
+    def test_saying_nothing_useful_hands_over_to_a_person(self):
+        replies = [self.say(text) for text in ("I want a car", "hmm", "?", "eh", "ok", "fine", "sure", "right", "hmm",
+                                               "?", "ok")]
+        enquiry = Enquiry.objects.get()
+        self.assertEqual((enquiry.step, enquiry.needs_person_reason),
+                         ("needs_person", "The chatbot could not find out what car they want"))
+        self.assertIn("One of our team will reply", [r for r in replies if r][-1])
+        self.assertEqual(replies[-1], "")  # then quiet: a person has it
 
     def test_asking_for_a_person_hands_over(self):
         self.say("hi")

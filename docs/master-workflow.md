@@ -265,23 +265,37 @@ If the customer does not reply, the CRM marks them "gone quiet" after 3 days, re
 
 ### Built so far (October 2026 demo)
 
-The journey runs in the portal's **WhatsApp simulator** (fake numbers) on a channel-independent engine
-(`backend/apps/enquiries`); the real WhatsApp API plugs into the same engine later.
+The journey runs on a channel-independent engine (`backend/apps/enquiries`): the portal's **WhatsApp
+simulator** (fake numbers 07700 900000 to 900999 only) and the **real WhatsApp Cloud API** (item 10).
 
 1. **The first message is classified by AI** (Gemini through the metered client, prompt `intent-v1` with
-   a 30-example eval set: `python manage.py eval_intent`). Car enquiry, finance, or a plain "hi" (below
-   `enquiry_min_confidence`, 0.6) → the chatbot. Other business (MOT, viewing, test drive, complaint) →
+   a 30-example eval set: `python manage.py eval_intent`). Car enquiry or finance → the chatbot. A plain
+   "hi" / "hello" (below `enquiry_min_confidence`, 0.6) → **no instant reply**: the Hub waits
+   `enquiry_greeting_wait_seconds` (60). If the customer says more in that time, that message is answered
+   straight away. If not, the Hub asks "Are you looking to buy a car? Or is it something else we can help
+   with, like a car you've already seen, an MOT or a service?" Yes → the chatbot's questions; no, or
+   other business → a person; unclear twice → a person. Other business (MOT, viewing, test drive, complaint) →
    "One of our team will reply shortly" and "Needs a person". Personal → no reply and **nothing stored**.
-2. **Chatbot (14 Oct 2026, default `enquiry_collect_by` = `chat`):** asks, one at a time and only what it
-   doesn't know yet: make & model → monthly budget → deposit → gearbox → part-exchange. A customer can
-   answer several at once ("M4 within 400 a month"). An unanswered question is asked once more, then
-   skipped. AI (prompt `chat-v1`) only **reads** the conversation and returns the answers as data; every
-   message the customer receives is written by code, so AI never writes to a customer or states a finance
-   figure. Asking for a person, or ending with neither a car nor a budget → "Needs a person". Then the
-   details are saved as a requirement and quoting starts, as for the form. Visible in the portal as
-   "So far in the chat".
-3. **Later messages are handled by the step, not AI:** one "still working on it"; after the options, a
-   number ("2", "the second one", "the Audi") hands over to the salesperson and the bot goes quiet.
+2. **Conversational chatbot (15 Oct 2026, default `enquiry_collect_by` = `chat`):** a natural WhatsApp
+   conversation. One AI call per customer message (prompt `chat-v2`) reads the conversation, returns what
+   the customer has asked for (car, monthly budget, deposit, gearbox, part-exchange) and writes the reply.
+   It answers side questions, asks for one or two missing things at a time and never re-asks what it knows.
+   **Every AI reply is checked by code before it is sent** (`conversation.guard`): no price, monthly
+   payment or deposit the customer didn't give, no rate, APR or percentage, no "approved/accepted", no
+   stock, forecourt or delivery promises, no links or phone numbers, nothing over 700 characters. A reply
+   that fails is replaced by the scripted question and logged (`enquiry.ai_reply_blocked`). Facts the bot
+   may give about Hart (hours, address) come only from the owner's `business_facts` setting; anything
+   else, it says the team will confirm. When the details are complete (or the customer says that's all
+   and we know the car or the budget) code thanks them and quoting starts, as for the form. Asking for a
+   person, or `enquiry_ai_max_replies` (20) replies without enough details → "Needs a person".
+   Owner switch `enquiry_ai_replies`: off, or AI unavailable → the scripted questions (make & model →
+   monthly budget → deposit → gearbox → part-exchange, written by code, AI or rules only read the
+   answers). Visible in the portal as "So far in the chat".
+3. **After the chat:** while cars are prepared, the bot answers questions without giving a time. After the
+   options, it helps the customer choose using only the sent car cards (no prices, no staff fields). A
+   number ("2", "number one", "I'll go with the Audi") hands over to the salesperson and the bot goes
+   quiet; a question ("which one has fewer miles?") is not taken as a choice. Option messages, quotes and
+   every finance figure are still built by code from Codeweavers only.
 4. **One-time form link** (only when `enquiry_collect_by` = `form`; `/f/<code>`, `form_link_days` = 7):
    make & model, colour, needed by, gearbox, monthly budget, deposit, part-exchange. One reminder of the
    link.
@@ -304,8 +318,23 @@ The journey runs in the portal's **WhatsApp simulator** (fake numbers) on a chan
    the figures and representative example in the car messages; no PDF is shown to staff or sent to customers.
 9. **When a customer chooses a car** the dashboard shows an alert (banner, chime, browser tab title) for
    whoever has the simulator open.
+10. **Real WhatsApp (15 Oct 2026), through Kapso (kapso.ai):** Kapso forwards Meta's WhatsApp Cloud API both
+    ways unchanged. Kapso's "Meta webhook" calls `/api/whatsapp/webhook`; only calls signed with our secret
+    (`X-Webhook-Signature`, hex HMAC-SHA256 of the body) are read, each message is handled once (retries are
+    dropped) and in the background. Every Hub message on a WhatsApp enquiry is sent through Kapso from the
+    business number the customer messaged; a car goes as its photo with the message as the caption.
+    Delivery is recorded on the message (`sent` / `failed` / `skipped`); failures are logged without the
+    message text. **Staging never talks to real customers:** unless `WHATSAPP_REAL_CUSTOMERS=true`
+    (production only), only `WHATSAPP_TEST_NUMBERS` are read and answered, and nothing about anyone else is
+    stored. **STOP** (or unsubscribe / opt out) suppresses the customer on every channel and closes their
+    conversations; if they write again the Hub stays quiet and the enquiry waits for a person.
+    Variables (Railway / `backend/.env` only): `WHATSAPP_PROVIDER=kapso`, `KAPSO_API_KEY`,
+    `KAPSO_WEBHOOK_SECRET` (the same value as the webhook's secret key in Kapso), `WHATSAPP_PHONE_NUMBER_ID`,
+    `WHATSAPP_BUSINESS_NUMBER`, `WHATSAPP_TEST_NUMBERS`, `WHATSAPP_REAL_CUSTOMERS`. Straight from Meta
+    instead: `WHATSAPP_PROVIDER=meta` with `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET` and
+    `WHATSAPP_VERIFY_TOKEN`. Check with `python manage.py whatsapp_check` (sends nothing).
 
-Not built yet: real WhatsApp API and templates, the 2-hour form reminder, name/email/consent on the form,
+Not built yet: WhatsApp templates (needed after 24 hours), the 2-hour form reminder, name/email/consent on the form,
 several makes or body type in one request, plate blurring in photos.
 
 ## W2 Portal chatbot

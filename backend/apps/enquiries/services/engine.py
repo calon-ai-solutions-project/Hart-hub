@@ -2,8 +2,9 @@
 
 new message -> AI decides what it is -> chat (or form link) -> quote cars -> approve -> 5 options -> hand-over
 
-AI classifies the first message, then reads the chat only to pull out what the customer wants; every word sent
-to the customer is written by code. After the chat, messages are handled by the journey's step.
+AI classifies the first message. While chatting, AI reads the conversation and writes the replies (each one checked
+by code before it is sent; scripted questions when AI is off). Options, quotes and finance figures are only ever
+built by code from Codeweavers.
 Personal messages are never stored. Nothing is sent outside WhatsApp's 24-hour window.
 """
 
@@ -16,6 +17,7 @@ from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 
+from apps.ai.client import AiUnavailable, ai_enabled
 from apps.core.services import emit_event, get_setting
 from apps.listings.services.public import car_page_url, is_available, link_for
 from apps.matching.models import Requirement
@@ -30,8 +32,12 @@ from ..models import Customer, Enquiry, EnquiryMessage, EnquiryOption
 
 WINDOW = timedelta(hours=24)  # WhatsApp: free-form messages only within 24 hours of the customer's last message
 FORM_FIELDS = ("make_model", "colour", "needed_by", "gearbox", "monthly_budget", "deposit", "part_exchange")
-WORD_NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "first": 1, "second": 2, "third": 3,
-                "fourth": 4, "fifth": 5}
+# "one" on its own is not a choice ("which one is cheaper?"); "number one" or "option one" is
+WORD_NUMBERS = {r"(number|option|car|no\.?) one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "first": 1,
+                "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+# a question about the cars is not a choice, unless it says so ("can I go with number 2?")
+QUESTION = r"^\s*(which|what|whats|what's|does|do|is|are|has|have|how|why|when|where|any|could you|can you)\b"
+CHOOSING = r"\b(i'?ll take|i'?ll have|i want|i'?d like|go with|go for|choose|pick|interested in)\b"
 
 
 class CannotSend(Exception):
@@ -54,9 +60,30 @@ def form_url(enquiry):
     return f"{settings.PUBLIC_SITE_URL}/f/{enquiry.form_token}"
 
 
+def next_time(enquiry, now=None):
+    """A message's time: now, but always after the conversation's last message. The conversation is ordered by
+    time, and Windows' clock can give two messages the same time."""
+    at = now or timezone.now()
+    latest = enquiry.messages.order_by("-created_at").values_list("created_at", flat=True).first()
+    return latest + timedelta(microseconds=1) if latest and at <= latest else at
+
+
 def say(enquiry, body, *, media_url="", sender=EnquiryMessage.Sender.BOT, user=None):
-    return EnquiryMessage.objects.create(enquiry=enquiry, direction=EnquiryMessage.Direction.OUT, sender=sender,
-                                         sent_by=user, body=body, media_url=media_url)
+    """Save a message to the customer; on WhatsApp it is delivered once saved, in the order it was said."""
+    message = EnquiryMessage.objects.create(enquiry=enquiry, direction=EnquiryMessage.Direction.OUT, sender=sender,
+                                            sent_by=user, body=body, media_url=media_url,
+                                            created_at=next_time(enquiry))
+    if enquiry.channel == "whatsapp":
+        transaction.on_commit(lambda: deliver(message.id))
+    return message
+
+
+def deliver(message_id):
+    from . import whatsapp
+
+    message = EnquiryMessage.objects.select_related("enquiry__customer").filter(pk=message_id).first()
+    if message is not None:
+        whatsapp.send(message)
 
 
 def move(enquiry, step, reason="", actor=None):
@@ -75,14 +102,30 @@ def active_enquiry(phone, now):
 
 # ---------------------------------------------------------------- incoming messages
 
-def handle_inbound(phone, text, *, channel="simulator", business_number="", now=None):
+STOP = r"\s*(stop|stop all|unsubscribe|opt out|optout)\s*[.!]*\s*"
+
+
+def stop(phone, now):
+    """STOP: the customer is suppressed on every channel at once, and their open conversations are closed."""
+    customer, _ = Customer.objects.get_or_create(phone=phone)
+    customer.opted_out_at = now
+    customer.save()
+    for enquiry in customer.enquiries.exclude(step=Enquiry.Step.CLOSED):
+        move(enquiry, Enquiry.Step.CLOSED, "Customer sent STOP")
+    emit_event("customer.stopped", {"customer_id": str(customer.id)})
+    return {"ignored": True, "intent": "stop", "enquiry": None, "replies": []}
+
+
+def handle_inbound(phone, text, *, channel="simulator", business_number="", now=None, external_id=""):
     """One message from a customer. Returns {"ignored": bool, "intent", "enquiry", "replies": [messages]}."""
     now = now or timezone.now()
     phone, text = e164(phone), (text or "").strip()[:2000]
+    if re.fullmatch(STOP, text, re.I):
+        return stop(phone, now)
     enquiry = active_enquiry(phone, now)
     if enquiry is not None:
         return {"ignored": False, "intent": enquiry.intent, "enquiry": enquiry,
-                "replies": continue_journey(enquiry, text, now)}
+                "replies": continue_journey(enquiry, text, now, external_id)}
 
     intent, confidence, how = classify(text)
     if intent == "personal":  # friends and family: no reply, nothing stored
@@ -95,12 +138,15 @@ def handle_inbound(phone, text, *, channel="simulator", business_number="", now=
                                          intent=intent, intent_confidence=confidence, intent_by=how,
                                          step=Enquiry.Step.NEEDS_PERSON, last_inbound_at=now)
         EnquiryMessage.objects.create(enquiry=enquiry, direction=EnquiryMessage.Direction.IN,
-                                      sender=EnquiryMessage.Sender.CUSTOMER, body=text, created_at=now)
+                                      sender=EnquiryMessage.Sender.CUSTOMER, body=text, created_at=now,
+                                      external_id=external_id)
         emit_event("enquiry.started", {"enquiry_id": str(enquiry.id), "intent": intent, "by": how,
                                        "confidence": confidence})
         replies = []
         by_form = get_setting("enquiry_collect_by") == "form"
-        if intent == Enquiry.Intent.OTHER:  # a booking, viewing or complaint: a person answers
+        if customer.opted_out_at:  # they sent STOP before: no bot messages; a person decides whether to reply
+            move(enquiry, Enquiry.Step.NEEDS_PERSON, "This customer sent STOP before: the Hub will not reply")
+        elif intent == Enquiry.Intent.OTHER:  # a booking, viewing or complaint: a person answers
             move(enquiry, Enquiry.Step.NEEDS_PERSON, "Not a car-buying enquiry")
             replies.append(say(enquiry, texts.person_will_reply()))
         elif by_form and intent in (Enquiry.Intent.CAR, Enquiry.Intent.FINANCE):
@@ -111,15 +157,19 @@ def handle_inbound(phone, text, *, channel="simulator", business_number="", now=
             move(enquiry, Enquiry.Step.NEEDS_PERSON, "The Hub was not sure what this is")
         else:  # a car enquiry, or just "hi": the chatbot asks what they are looking for
             move(enquiry, Enquiry.Step.CHATTING)
-    if enquiry.step == Enquiry.Step.CHATTING:
-        replies = chat(enquiry, first=True)
+    if enquiry.step == Enquiry.Step.CHATTING and intent == Enquiry.Intent.UNSURE:
+        # just "hi": give them a minute to say more; if they don't, ask what they're messaging about
+        transaction.on_commit(lambda: wait_then_ask_purpose(enquiry.id))
+    elif enquiry.step == Enquiry.Step.CHATTING:
+        replies = chat(enquiry)
     return {"ignored": False, "intent": intent, "enquiry": enquiry, "replies": replies}
 
 
-def continue_journey(enquiry, text, now):
-    """A message in the middle of a journey: handled by its step, never by AI."""
+def continue_journey(enquiry, text, now, external_id=""):
+    """A message in the middle of a journey: handled by its step (AI reads it while chatting)."""
     EnquiryMessage.objects.create(enquiry=enquiry, direction=EnquiryMessage.Direction.IN,
-                                  sender=EnquiryMessage.Sender.CUSTOMER, body=text, created_at=now)
+                                  sender=EnquiryMessage.Sender.CUSTOMER, body=text, created_at=next_time(enquiry, now),
+                                  external_id=external_id)
     enquiry.last_inbound_at = now
     enquiry.save()
     step = enquiry.step
@@ -129,7 +179,10 @@ def continue_journey(enquiry, text, now):
         enquiry.nudged = True
         enquiry.save()
         return [say(enquiry, texts.form_reminder(form_url(enquiry)))]
-    if step in (Enquiry.Step.FORM_DONE, Enquiry.Step.QUOTING, Enquiry.Step.AWAITING_APPROVAL) and not enquiry.nudged:
+    waiting = step in (Enquiry.Step.FORM_DONE, Enquiry.Step.QUOTING, Enquiry.Step.AWAITING_APPROVAL)
+    if waiting and ai_replies():
+        return side_reply(enquiry, "waiting")
+    if waiting and not enquiry.nudged:
         enquiry.nudged = True
         enquiry.save()
         return [say(enquiry, texts.still_working())]
@@ -138,22 +191,187 @@ def continue_journey(enquiry, text, now):
         if number:
             return [hand_over(enquiry, number)]
         move(enquiry, Enquiry.Step.OPTIONS_SENT, "Replied to the options, but not with a car number")
+        if ai_replies():
+            return side_reply(enquiry, "options")
     return []  # a person has the conversation, or the Hub has already said it is working on it
 
 
-def chat(enquiry, first=False):
-    """The chatbot's turn: read the conversation, keep what the customer has told us, then ask the next
-    question, or, once there is nothing left to ask, start finding and quoting cars."""
+def wait_then_ask_purpose(enquiry_id):
+    """Ask what a bare "hi" is about, after `enquiry_greeting_wait_seconds`, unless they say more first."""
+    wait = int(get_setting("enquiry_greeting_wait_seconds"))
+    if settings.CELERY_TASK_ALWAYS_EAGER:
+        timer = threading.Timer(wait, _run_on_thread, args=(ask_purpose, enquiry_id))
+        timer.daemon = True
+        timer.start()
+    else:
+        from ..tasks import ask_purpose as task
+
+        task.apply_async(args=[str(enquiry_id)], countdown=wait)
+
+
+def ask_purpose(enquiry_id, now=None):
+    """The minute is up. Ask "are you looking to buy a car, or something else?" if nothing has been said since
+    the greeting and the Hub has not replied yet."""
+    now = now or timezone.now()
+    wait = timedelta(seconds=int(get_setting("enquiry_greeting_wait_seconds")))
+    with transaction.atomic():
+        enquiry = Enquiry.objects.select_for_update().filter(pk=enquiry_id).first()
+        if enquiry is None or enquiry.step != Enquiry.Step.CHATTING:
+            return None
+        if enquiry.messages.filter(direction=EnquiryMessage.Direction.OUT).exists():
+            return None  # they wrote again and the chatbot has already answered
+        since = now - (enquiry.last_inbound_at or now)
+        if since < wait - timedelta(seconds=2) or since > WINDOW:
+            return None  # a newer message is being answered, or it is too late for a free-form message
+        enquiry.asked = list(enquiry.asked) + ["purpose"]
+        enquiry.save()
+        emit_event("enquiry.purpose_asked", {"enquiry_id": str(enquiry.id)})
+        return say(enquiry, texts.purpose())
+
+
+def ai_replies():
+    """Conversational replies: the owner's switch, and AI configured."""
+    return bool(get_setting("enquiry_ai_replies")) and ai_enabled()
+
+
+def bot_replies(enquiry):
+    return enquiry.messages.filter(direction=EnquiryMessage.Direction.OUT, sender=EnquiryMessage.Sender.BOT).count()
+
+
+def customer_texts(messages):
+    return [m.body for m in messages if m.direction == EnquiryMessage.Direction.IN]
+
+
+def chat(enquiry):
+    """The chatbot's turn: conversational when AI replies are on, else the scripted questions."""
+    if ai_replies():
+        try:
+            return ai_chat(enquiry)
+        except AiUnavailable:
+            pass  # the scripted questions carry on the same conversation
+    return scripted_chat(enquiry)
+
+
+def ai_chat(enquiry):
+    """AI reads the conversation and writes the reply; code keeps the answers, checks the reply and decides when
+    there is enough to start quoting."""
     messages = list(enquiry.messages.all())
-    asked = list(enquiry.asked)
-    last_question = asked[-1] if asked else ""
-    intent, found, wants_person, how = conversation.understand(messages, last_question)
-    if intent == "personal" and not enquiry.answers and not found:
-        return []  # not for the business: no reply
+    first = not any(m.direction == EnquiryMessage.Direction.OUT for m in messages)
+    needed = [name for name in conversation.QUESTIONS if name not in enquiry.answers]
+    intent, found, wants_person, ready, reply = conversation.converse(
+        messages, stage="chatting", known=enquiry.answers, needed=needed, facts=get_setting("business_facts"))
     if wants_person or (intent == "other_business" and not enquiry.answers and not found):
         move(enquiry, Enquiry.Step.NEEDS_PERSON,
              "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
         return [say(enquiry, texts.person_will_reply())]
+    if intent == "personal" and not enquiry.answers and not found:
+        return []  # not for the business: no reply
+
+    new = {name: value for name, value in found.items() if enquiry.answers.get(name) != value}
+    enquiry.answers = {**enquiry.answers, **found}
+    if (new or intent == "car_enquiry") and enquiry.intent == Enquiry.Intent.UNSURE:
+        enquiry.intent, enquiry.intent_by = Enquiry.Intent.CAR, "ai"
+    emit_event("enquiry.chat", {"enquiry_id": str(enquiry.id), "by": "ai", "fields": sorted(new)})
+
+    complete = all(name in enquiry.answers for name in conversation.QUESTIONS)
+    if complete or (ready and knows_what_they_want(enquiry)):
+        return finish_chat(enquiry)
+    if bot_replies(enquiry) >= int(get_setting("enquiry_ai_max_replies")):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON, "Long conversation without enough details to quote")
+        return [say(enquiry, texts.person_will_reply())]
+
+    safe = conversation.guard(reply, customer_texts(messages))
+    if safe is None:  # the reply broke a rule (a price, a rate, a promise...): the scripted question instead
+        emit_event("enquiry.ai_reply_blocked", {"enquiry_id": str(enquiry.id), "stage": "chatting"})
+        if enquiry.answers or intent == "car_enquiry":
+            safe = texts.chat_reply(conversation.next_question(enquiry.answers, []), new, first=first)
+        else:
+            safe = texts.purpose(first=first)
+    enquiry.save()
+    return [say(enquiry, safe)]
+
+
+def side_reply(enquiry, stage):
+    """A conversational answer while the cars are being prepared ("waiting") or after they were sent
+    ("options"). The car details come only from the customer cards that were sent."""
+    if bot_replies(enquiry) >= int(get_setting("enquiry_ai_max_replies")):
+        return []
+    messages = list(enquiry.messages.all())
+    cars = []
+    if stage == "options":
+        for option in enquiry.options.filter(sent=True):
+            card = option.customer["card"]
+            cars.append({"number": option.number, **{key: card.get(key) for key in (
+                "title", "year", "mileage", "fuel", "gearbox", "colour", "body", "available_until")}})
+    try:
+        _, _, wants_person, _, reply = conversation.converse(
+            messages, stage=stage, known=enquiry.answers, needed=[], facts=get_setting("business_facts"), cars=cars)
+    except AiUnavailable:
+        reply, wants_person = "", False
+    if wants_person:
+        move(enquiry, enquiry.step, "Asked to speak to a person")
+        return [say(enquiry, texts.person_will_reply())]
+    safe = conversation.guard(reply, customer_texts(messages))
+    if safe is None:
+        if reply:
+            emit_event("enquiry.ai_reply_blocked", {"enquiry_id": str(enquiry.id), "stage": stage})
+        if stage == "options" or enquiry.nudged:
+            return []
+        enquiry.nudged = True
+        enquiry.save()
+        safe = texts.still_working()
+    return [say(enquiry, safe)]
+
+
+def knows_what_they_want(enquiry):
+    return bool({"make_model", "monthly_budget"} & {
+        name for name, value in enquiry.answers.items() if value not in ("any", "none", "£0")})
+
+
+def finish_chat(enquiry):
+    """Enough to quote: save the request, thank them, start finding and quoting cars. Neither a car nor a budget
+    means a person takes over."""
+    if not knows_what_they_want(enquiry):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON, "The chatbot could not find out what car they want")
+        return [say(enquiry, texts.person_will_reply())]
+    with transaction.atomic():
+        thanks = save_request(enquiry, enquiry.answers, timezone.now())
+    start_preparing(enquiry.id)
+    return [thanks]
+
+
+def scripted_chat(enquiry):
+    """The scripted chatbot: read the conversation, keep what the customer has told us, then ask the next
+    question, or, once there is nothing left to ask, start finding and quoting cars."""
+    messages = list(enquiry.messages.all())
+    first = not any(m.direction == EnquiryMessage.Direction.OUT for m in messages)  # the Hub hasn't spoken yet
+    asked = list(enquiry.asked)
+    last_question = asked[-1] if asked else ""
+    intent, found, wants_person, how = conversation.understand(messages, last_question)
+    if wants_person or (intent == "other_business" and not enquiry.answers and not found):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON,
+             "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
+        return [say(enquiry, texts.person_will_reply())]
+
+    # "are you looking to buy a car?": yes -> the questions; no -> a person; unclear -> ask once more
+    buying = False
+    text = messages[-1].body if messages else ""
+    if last_question == "purpose":
+        buying = intent == "car_enquiry" or bool(found) or conversation.said_yes(text)
+        if not buying:
+            if conversation.said_no(text) or asked.count("purpose") >= 2:
+                move(enquiry, Enquiry.Step.NEEDS_PERSON, "Not looking to buy a car" if conversation.said_no(text)
+                     else "Did not say what they're messaging about")
+                return [say(enquiry, texts.person_will_reply())]
+            enquiry.asked = asked + ["purpose"]
+            enquiry.save()
+            return [say(enquiry, texts.purpose(first=False))]
+    elif intent == "greeting" and not asked and not enquiry.answers and not found:
+        enquiry.asked = asked + ["purpose"]  # still only hellos: find out what they want first
+        enquiry.save()
+        return [say(enquiry, texts.purpose(first=first))]
+    if intent == "personal" and not enquiry.answers and not found:
+        return []  # not for the business: no reply
 
     new = {name: value for name, value in found.items() if enquiry.answers.get(name) != value}
     enquiry.answers = {**enquiry.answers, **found}
@@ -162,24 +380,16 @@ def chat(enquiry, first=False):
     emit_event("enquiry.chat", {"enquiry_id": str(enquiry.id), "by": how, "fields": sorted(new)})
 
     # nothing new in answer to a question asked once: ask it again; otherwise move on to the next one
-    if not new and last_question and last_question not in enquiry.answers and asked.count(last_question) < 2:
+    if (not new and last_question in conversation.QUESTIONS and last_question not in enquiry.answers
+            and asked.count(last_question) < 2):
         question = last_question
     else:
         question = conversation.next_question(enquiry.answers, asked)
     if question:
         enquiry.asked = asked + [question]
         enquiry.save()
-        return [say(enquiry, texts.chat_reply(question, new, first=first))]
-
-    wanted = {name for name, value in enquiry.answers.items() if value not in ("any", "none", "£0")}
-    if not {"make_model", "monthly_budget"} & wanted:
-        move(enquiry, Enquiry.Step.NEEDS_PERSON, "The chatbot could not find out what car they want")
-        return [say(enquiry, texts.person_will_reply())]
-    with transaction.atomic():
-        save_request(enquiry, enquiry.answers, timezone.now())
-    thanks = enquiry.messages.filter(direction=EnquiryMessage.Direction.OUT).last()
-    start_preparing(enquiry.id)
-    return [thanks]
+        return [say(enquiry, texts.chat_reply(question, new, first=first, buying=buying))]
+    return finish_chat(enquiry)
 
 
 def chosen_number(enquiry, text):
@@ -187,6 +397,8 @@ def chosen_number(enquiry, text):
     sent = list(enquiry.options.filter(sent=True))
     numbers = {option.number for option in sent}
     words = text.lower()
+    if re.search(QUESTION, words) and not re.search(CHOOSING, words):
+        return None
     found = re.findall(r"\b([1-9])\b", words) + [str(n) for w, n in WORD_NUMBERS.items() if re.search(rf"\b{w}\b", words)]
     picked = {int(n) for n in found if int(n) in numbers}
     if len(picked) == 1:
@@ -232,7 +444,7 @@ def submit_form(enquiry, answers, now=None):
 
 
 def save_request(enquiry, answers, now):
-    """What the customer wants, from the form or the chat -> a saved requirement; thanks them."""
+    """What the customer wants, from the form or the chat -> a saved requirement. Returns the thank-you."""
     answers = {name: str(answers.get(name) or "").strip()[:200] for name in FORM_FIELDS}
     requirement = Requirement(channel=enquiry.channel)
     fields = parse.from_form(answers)
@@ -243,10 +455,10 @@ def save_request(enquiry, answers, now):
     requirement.save()
     enquiry.requirement, enquiry.form_submitted_at, enquiry.nudged = requirement, now, False
     move(enquiry, Enquiry.Step.FORM_DONE)
-    say(enquiry, texts.thanks(answers if enquiry.asked else None))
+    thanks = say(enquiry, texts.thanks(answers if enquiry.asked else None))
     emit_event("requirement.saved", {"requirement_id": str(requirement.id), "channel": enquiry.channel,
                                      "enquiry_id": str(enquiry.id)})
-    return requirement
+    return thanks
 
 
 # ---------------------------------------------------------------- find, quote, then send
@@ -254,16 +466,16 @@ def save_request(enquiry, answers, now):
 def start_preparing(enquiry_id):
     """With a worker the job is queued; without one (local development) it runs on a thread."""
     if settings.CELERY_TASK_ALWAYS_EAGER:
-        threading.Thread(target=_prepare_on_thread, args=(enquiry_id,), daemon=True).start()
+        threading.Thread(target=_run_on_thread, args=(prepare_options, enquiry_id), daemon=True).start()
     else:
         from ..tasks import prepare_options
 
         prepare_options.delay(str(enquiry_id))
 
 
-def _prepare_on_thread(enquiry_id):
+def _run_on_thread(job, enquiry_id):
     try:
-        prepare_options(enquiry_id)
+        job(enquiry_id)
     finally:
         connection.close()
 

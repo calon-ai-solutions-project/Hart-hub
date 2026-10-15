@@ -7,6 +7,7 @@ the customer wants. You never write a reply; code does. Return JSON only:
 
 intent describes the conversation as a whole:
 - "car_enquiry": they want to buy, change or find a car, or get finance on one.
+  A yes to the Hub asking "Are you looking to buy a car?" is "car_enquiry".
 - "greeting": only a greeting or small talk so far ("hi", "hello", "you there?"), nothing about what they want.
 - "other_business": about the dealership but not buying a car: MOT or service, a viewing or test drive of a
   particular car, collecting a car, paperwork, a complaint, selling their own car only.

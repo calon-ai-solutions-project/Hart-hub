@@ -59,7 +59,7 @@ def _parse_json(text):
     return json.loads(fenced.group(1) if fenced else text)
 
 
-def complete_json(feature, prompt_version, system, user):
+def complete_json(feature, prompt_version, system, user, temperature=0):
     """Send one prompt and return the model's JSON answer. Logs model, prompt version and cost."""
     if not ai_enabled():
         raise AiUnavailable("AI is not configured (OPENROUTER_API_KEY and OPENROUTER_MODEL).")
@@ -68,7 +68,7 @@ def complete_json(feature, prompt_version, system, user):
         request = {
             "model": settings.OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0,
+            "temperature": temperature,
             "max_tokens": settings.AI_MAX_OUTPUT_TOKENS,
             "response_format": {"type": "json_object"},
             "usage": {"include": True},

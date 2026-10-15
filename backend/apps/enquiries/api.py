@@ -2,6 +2,7 @@
 
 - /api/sim/...           staff only: the WhatsApp-style simulator and the enquiry dashboard.
 - /api/public/forms/...  no login: the one-time enquiry form a customer opens from the link.
+- /api/whatsapp/webhook  Meta's WhatsApp Cloud API (webhook.py).
 """
 
 from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
@@ -17,6 +18,7 @@ from apps.core.services import emit_event, get_setting
 
 from .models import Customer, Enquiry, EnquiryMessage
 from .services import engine
+from .webhook import webhook
 
 TABS = {
     "bot": Enquiry.BOT_STEPS,
@@ -62,6 +64,12 @@ def enquiry_json(enquiry, full=False):
 class InboundSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=30)
     text = serializers.CharField(max_length=2000)
+
+    def validate_phone(self, value):
+        # fake numbers only (Ofcom's drama range): the simulator can never write into a real customer's chat
+        if not engine.e164(value).startswith("+447700900") or len(engine.e164(value)) != 13:
+            raise serializers.ValidationError("The simulator only uses fake numbers: 07700 900000 to 07700 900999.")
+        return value
 
 
 def workable(request, enquiry_id):
@@ -217,4 +225,5 @@ urlpatterns = [
     path("sim/enquiries/<uuid:enquiry_id>", EnquiryView.as_view()),
     path("sim/enquiries/<uuid:enquiry_id>/approve", EnquiryApproveView.as_view()),
     path("public/forms/<str:token>", PublicFormView.as_view()),
+    path("whatsapp/webhook", webhook),
 ]
