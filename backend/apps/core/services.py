@@ -22,7 +22,8 @@ DEFAULTS = {
     "form_link_days": 7,  # how long the form link works
     "enquiry_collect_by": "chat",  # chat: the chatbot asks what they want; form: a link to the one-page form
     "enquiry_ai_replies": True,  # owner switch: the chatbot's replies are written by AI (checked by code)
-    "enquiry_ai_max_replies": 20,  # after this many bot replies in one enquiry, a person takes over
+    "enquiry_ai_max_replies": 20,
+    "enquiry_max_searches": 3,  # searches with no quotable car before a person takes over  # after this many bot replies in one enquiry, a person takes over
     "business_facts": "",  # what the chatbot may tell customers about Hart (hours, address...); owner-approved
     "enquiry_greeting_wait_seconds": 60,  # after a bare "hi", wait this long for more before asking what it's about
     "public_whatsapp_number": "",  # Hart's WhatsApp number in international form, e.g. 447700900100
@@ -64,6 +65,8 @@ DESCRIPTIONS = {
     "enquiry_ai_replies": "true: the WhatsApp chatbot is conversational: AI writes each reply, and code checks it "
                           "before it is sent (no prices, monthly payments, rates, finance acceptance, stock or "
                           "delivery promises, links). false: scripted questions. Owner decision.",
+    "enquiry_max_searches": "When no car can be quoted, the bot tells the customer and asks for another car or "
+                            "budget. After this many searches with no car, a person takes over.",
     "enquiry_ai_max_replies": "After this many chatbot replies in one enquiry without enough details, a person "
                               "takes over.",
     "business_facts": "Facts the chatbot may tell customers about Hart (opening hours, address, what you offer). "

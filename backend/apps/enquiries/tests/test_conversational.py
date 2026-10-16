@@ -122,6 +122,24 @@ class ConversationalTests(TestCase):
         self.assertIn("Great choice", self.say("2"))  # choosing is still done by code, no AI call
         self.assertEqual(Enquiry.objects.get().step, "handed_over")
 
+    def test_no_car_found_the_ai_helps_them_change_and_a_change_searches_again(self):
+        from apps.quotes import codeweavers as cw
+
+        self.say("BMW 1 Series", ai("Budget?", make_model="BMW 1 Series"))
+        patch, _ = fake_codeweavers({f"XX2{n} TST": cw.QuoteError("no") for n in range(1, 9)})
+        with patch:
+            self.say("£400 a month, no deposit, that's it", ai("ok", ready=True, monthly_budget_gbp=400, deposit_gbp=0))
+        enquiry = Enquiry.objects.get()
+        self.assertEqual((enquiry.step, enquiry.asked[-1]), ("chatting", "retry"))
+        # just chatting: the AI answers, nothing is searched yet, and it knows why
+        reply = self.say("hmm what do you suggest?", ai("Would a different model or a higher budget work for you?"))
+        self.assertEqual(reply, "Would a different model or a higher budget work for you?")
+        self.assertIn('"NOTE": "No cars could be found', self.calls.call_args.args[3])
+        self.assertEqual(Enquiry.objects.get().step, "chatting")
+        thanks = self.say("ok a golf then", ai("ok", make_model="Volkswagen Golf"))
+        self.assertTrue(thanks.startswith("Thank you"), thanks)
+        self.assertEqual(Enquiry.objects.get().requirement.make, "Volkswagen")
+
     def test_owner_can_switch_back_to_scripted(self):
         from apps.core.models import Setting
 

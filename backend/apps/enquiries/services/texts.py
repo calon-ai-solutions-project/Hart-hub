@@ -62,6 +62,15 @@ def chat_reply(question, new_answers, first=False, buying=False):
     return "\n\n".join(lines)
 
 
+def no_cars(answers):
+    """No car could be found or quoted: say what was searched for and invite another car or budget."""
+    searched = noted({name: answers.get(name) for name in ("make_model", "monthly_budget", "gearbox")})
+    what = f"a match for {searched}" if searched else "a car that matches"
+    return (f"Sorry, we couldn't find {what} that we can offer on finance right now 😕\n\n"
+            "Would you like to try a different car, or a different monthly budget or deposit? Just tell me what "
+            "you'd like and I'll search again.")
+
+
 def person_will_reply():
     return "Thanks for your message 👍 One of our team will reply to you here shortly."
 

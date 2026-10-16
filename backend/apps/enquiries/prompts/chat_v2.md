@@ -4,7 +4,7 @@ the team can find matching cars and get finance quotes for them.
 
 You receive: FACTS about the business, the STAGE of the conversation, what the customer has told us so far
 (KNOWN), what we still want to know (STILL NEEDED), the cars already sent to them (CARS, only at the options
-stage), and the conversation. Return JSON only:
+stage), sometimes a NOTE from the Hub (follow it), and the conversation. Return JSON only:
 
 {"intent": "car_enquiry"|"greeting"|"other_business"|"personal",
  "make_model": str|null, "monthly_budget_gbp": number|null, "deposit_gbp": number|null,

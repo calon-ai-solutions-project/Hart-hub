@@ -158,22 +158,24 @@ class JourneyTests(TestCase):
         self.assertEqual(self.fill_form(enquiry).json()["already"], True)
         self.assertEqual(enquiry.options.count(), 5)
 
-    def test_nothing_quotable_means_a_person_takes_over_and_nothing_is_sent(self):
+    def test_nothing_quotable_tells_the_customer_and_asks_for_another_car(self):
         self.codeweavers({c.registration: codeweavers.QuoteError("no") for c in self.cars})
         self.inbound("looking for a car")
         enquiry = Enquiry.objects.get()
         self.fill_form(enquiry)
         enquiry.refresh_from_db()
-        self.assertEqual(enquiry.step, "needs_person")
-        self.assertEqual(enquiry.quotes_tried, 8)  # every car with a registration was tried
-        self.assertEqual(enquiry.messages.filter(direction="out").count(), 2)  # form link and thanks only
+        self.assertEqual(enquiry.step, "chatting")
+        self.assertEqual(Event.objects.get(type="enquiry.no_match").payload["tried"], 8)  # every car was tried
+        last = enquiry.messages.filter(direction="out").order_by("created_at").last().body
+        self.assertTrue(last.startswith("Sorry, we couldn't find"), last)
+        self.assertEqual(enquiry.options.count(), 0)  # no car options were sent
 
     def test_quoting_stops_at_the_limit(self):
         Setting.objects.create(key="enquiry_max_quotes", value=3)
         self.codeweavers({c.registration: codeweavers.QuoteError("no") for c in self.cars})
         self.inbound("looking for a car")
         self.fill_form(Enquiry.objects.get())
-        self.assertEqual(Enquiry.objects.get().quotes_tried, 3)
+        self.assertEqual(Event.objects.get(type="enquiry.no_match").payload["tried"], 3)
 
     def test_no_options_outside_the_24_hour_window(self):
         self.codeweavers()
@@ -293,6 +295,45 @@ class ChatbotTests(TestCase):
                           requirement.gearbox), ("BMW", 40000, 200000, "auto"))
         self.assertEqual(enquiry.step, "awaiting_approval")  # still nothing is sent before a person approves
         self.assertEqual(self.seen[0].deposit_pence, 200000)
+
+    def last_sent(self):
+        return EnquiryMessage.objects.filter(direction="out").order_by("created_at").last().body
+
+    def test_no_car_found_then_another_car_searches_again(self):
+        from apps.quotes import codeweavers as cw
+
+        self.say("I'm after a BMW 1 Series")
+        self.say("400")
+        self.say("2k")
+        self.say("automatic")
+        with mock.patch.object(cw, "QuoteError", cw.QuoteError):
+            patch, _ = fake_codeweavers({f"XX2{n} TST": cw.QuoteError("no") for n in range(1, 9)})
+            with patch:
+                self.say("no")
+        sorry = self.last_sent()
+        self.assertIn("Sorry, we couldn't find a match for *BMW 1 Series* · up to £400/month · automatic", sorry)
+        self.assertIn("try a different car", sorry)
+        enquiry = Enquiry.objects.get()
+        self.assertEqual((enquiry.step, enquiry.asked[-1]), ("chatting", "retry"))
+        thanks = self.say("ok, up to £600 a month then")  # a new budget: search again
+        self.assertTrue(thanks.startswith("Thank you"), thanks)
+        enquiry.refresh_from_db()
+        self.assertEqual((enquiry.step, enquiry.requirement.monthly_budget_pence), ("awaiting_approval", 60000))
+
+    def test_after_the_last_empty_search_a_person_takes_over(self):
+        from apps.core.models import Setting
+        from apps.quotes import codeweavers as cw
+
+        Setting.objects.create(key="enquiry_max_searches", value=2)
+        patch, _ = fake_codeweavers({f"XX2{n} TST": cw.QuoteError("no") for n in range(1, 9)})
+        with patch:
+            for text in ("I'm after a BMW 1 Series", "400", "2k", "automatic", "no"):
+                self.say(text)
+            self.say("try £500 a month")
+        self.assertIn("One of our team will reply", self.last_sent())
+        enquiry = Enquiry.objects.get()
+        self.assertEqual(enquiry.step, "needs_person")
+        self.assertIn("2 searches", enquiry.needs_person_reason)
 
     def test_answers_given_up_front_are_not_asked_again(self):
         reply = self.say("hi im looking for a bmw 1 series within £400 a month")

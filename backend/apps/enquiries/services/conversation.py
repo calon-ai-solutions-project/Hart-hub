@@ -194,7 +194,7 @@ def guard(reply, customer_texts):
     return reply
 
 
-def converse(messages, *, stage, known, needed, facts="", cars=()):
+def converse(messages, *, stage, known, needed, facts="", cars=(), note=""):
     """One AI call: (intent, answers, wants_person, ready, reply) for the conversation so far.
     The reply is not checked here: the caller passes it through `guard`."""
     context = {
@@ -206,6 +206,8 @@ def converse(messages, *, stage, known, needed, facts="", cars=()):
     }
     if cars:
         context["CARS"] = list(cars)
+    if note:
+        context["NOTE"] = note
     user = json.dumps(context, ensure_ascii=False, indent=1) + "\n\nCONVERSATION:\n" + transcript(messages)
     data = complete_json("enquiry-chat", REPLY_PROMPT_VERSION, reply_prompt(), user, temperature=0.4)
     if not isinstance(data, dict):

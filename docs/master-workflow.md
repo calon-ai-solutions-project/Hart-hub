@@ -305,7 +305,11 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
 5. **PCP only (14 Oct 2026):** only cars with a 48-month PCP quote are sent; no Hire Purchase.
    **Quote first, then send:** cars are tried at Codeweavers in ranked order with the form's deposit until
    `enquiry_options` (5) have a quote or `enquiry_max_quotes` (12) have been tried. Cars that cannot be
-   quoted are skipped. None quoted → "Needs a person", nothing sent.
+   quoted are skipped. **None quoted (16 Oct 2026):** the bot tells the customer ("Sorry, we couldn't find
+   a match for *BMW M4* · up to £400/month that we can offer on finance right now… Would you like to try a
+   different car, or a different monthly budget or deposit?") and goes back to chatting; as soon as they
+   change the car, budget, deposit or gearbox it searches and quotes again. After `enquiry_max_searches` (3)
+   empty searches, or outside the 24-hour window, a person takes over.
 6. **Approval:** the options wait for **Approve & send** unless the owner turns on `enquiry_auto_send`.
    Cars that ended meanwhile are dropped; outside the 24-hour window nothing is sent (template needed).
 7. **Messages built by code from the customer card and the Codeweavers figures:** an intro, one message per

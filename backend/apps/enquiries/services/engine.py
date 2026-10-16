@@ -255,9 +255,13 @@ def ai_chat(enquiry):
     there is enough to start quoting."""
     messages = list(enquiry.messages.all())
     first = not any(m.direction == EnquiryMessage.Direction.OUT for m in messages)
-    needed = [name for name in conversation.QUESTIONS if name not in enquiry.answers]
+    again = searching_again(enquiry)
+    needed = [] if again else [name for name in conversation.QUESTIONS if name not in enquiry.answers]
+    note = ("No cars could be found or quoted for what is in KNOWN, and the customer has been told. Help them "
+            "choose a different car, monthly budget, deposit or gearbox; don't suggest specific prices.") if again else ""
     intent, found, wants_person, ready, reply = conversation.converse(
-        messages, stage="chatting", known=enquiry.answers, needed=needed, facts=get_setting("business_facts"))
+        messages, stage="chatting", known=enquiry.answers, needed=needed, facts=get_setting("business_facts"),
+        note=note)
     if wants_person or (intent == "other_business" and not enquiry.answers and not found):
         move(enquiry, Enquiry.Step.NEEDS_PERSON,
              "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
@@ -271,8 +275,10 @@ def ai_chat(enquiry):
         enquiry.intent, enquiry.intent_by = Enquiry.Intent.CAR, "ai"
     emit_event("enquiry.chat", {"enquiry_id": str(enquiry.id), "by": "ai", "fields": sorted(new)})
 
-    complete = all(name in enquiry.answers for name in conversation.QUESTIONS)
-    if complete or (ready and knows_what_they_want(enquiry)):
+    if again:  # search again only once something that changes the search has changed
+        if set(new) & set(SEARCH_FIELDS) and knows_what_they_want(enquiry):
+            return finish_chat(enquiry)
+    elif all(name in enquiry.answers for name in conversation.QUESTIONS) or (ready and knows_what_they_want(enquiry)):
         return finish_chat(enquiry)
     if bot_replies(enquiry) >= int(get_setting("enquiry_ai_max_replies")):
         move(enquiry, Enquiry.Step.NEEDS_PERSON, "Long conversation without enough details to quote")
@@ -351,9 +357,18 @@ def scripted_chat(enquiry):
              "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
         return [say(enquiry, texts.person_will_reply())]
 
+    text = messages[-1].body if messages else ""
+    if last_question == "retry":  # nothing was found: a new car or budget searches again, anything else -> a person
+        changed = {name: value for name, value in found.items()
+                   if name in SEARCH_FIELDS and enquiry.answers.get(name) != value}
+        if changed:
+            enquiry.answers = {**enquiry.answers, **found}
+            return finish_chat(enquiry)
+        move(enquiry, Enquiry.Step.NEEDS_PERSON, "No car found, and the customer did not give another car or budget")
+        return [say(enquiry, texts.person_will_reply())]
+
     # "are you looking to buy a car?": yes -> the questions; no -> a person; unclear -> ask once more
     buying = False
-    text = messages[-1].body if messages else ""
     if last_question == "purpose":
         buying = intent == "car_enquiry" or bool(found) or conversation.said_yes(text)
         if not buying:
@@ -538,8 +553,7 @@ def prepare_options(enquiry_id):
                                          customer={"card": card, "quote": quotes.quote_json(quote)["customer"]},
                                          staff=staff)
         if not done:
-            move(enquiry, Enquiry.Step.NEEDS_PERSON,
-                 f"No car could be quoted ({enquiry.quotes_tried} tried). Nothing was sent to the customer.")
+            offer_another_search(enquiry)
             return
         move(enquiry, Enquiry.Step.AWAITING_APPROVAL)
     emit_event("enquiry.options_ready", {"enquiry_id": str(enquiry.id), "options": len(done),
@@ -552,6 +566,33 @@ def prepare_options(enquiry_id):
 
 
 WHATSAPP_IMAGES = (".jpg", ".jpeg", ".png")  # WhatsApp image messages take JPEG or PNG only, never WebP
+
+
+# what a new search can change: the car, the budget, the deposit or the gearbox
+SEARCH_FIELDS = ("make_model", "monthly_budget", "deposit", "gearbox")
+
+
+def searching_again(enquiry):
+    return bool(enquiry.asked) and enquiry.asked[-1] == "retry"
+
+
+def offer_another_search(enquiry):
+    """No car could be quoted: tell the customer and ask for another car or budget, then search again. After
+    `enquiry_max_searches` empty searches (or outside the 24-hour window) a person takes over."""
+    tried = enquiry.quotes_tried
+    searches = list(enquiry.asked).count("retry") + 1
+    recent = enquiry.last_inbound_at and timezone.now() - enquiry.last_inbound_at <= WINDOW
+    emit_event("enquiry.no_match", {"enquiry_id": str(enquiry.id), "tried": tried, "search": searches})
+    if not recent or searches >= int(get_setting("enquiry_max_searches")):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON,
+             f"No car could be quoted in {searches} search{'es' if searches > 1 else ''} ({tried} tried this time)")
+        if recent:
+            say(enquiry, texts.person_will_reply())
+        return
+    enquiry.asked = list(enquiry.asked) + ["retry"]
+    enquiry.quotes_tried, enquiry.nudged = 0, False
+    move(enquiry, Enquiry.Step.CHATTING)
+    say(enquiry, texts.no_cars(enquiry.answers))
 
 
 def first_photo_url(listing):
