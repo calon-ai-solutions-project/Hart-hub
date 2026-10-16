@@ -70,7 +70,7 @@ DESCRIPTIONS = {
                       "Anything not here, it says the team will confirm. Approved by the owner.",
     "enquiry_greeting_wait_seconds": "When the first message is only a greeting ('hi', 'hello'), the chatbot waits "
                                      "this many seconds for the customer to say more. If they don't, it asks "
-                                     "whether they want to buy a car or something else.",
+                                     "whether they are looking to buy a car.",
     "form_link_days": "How many days the customer's form link keeps working.",
     "public_whatsapp_number": "Hart's WhatsApp Business number, digits only with the country code (447700900100). "
                               "Shown as the 'Reply on WhatsApp' button on the public car page; empty hides it.",

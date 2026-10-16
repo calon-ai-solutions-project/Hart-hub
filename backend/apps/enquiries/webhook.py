@@ -38,6 +38,8 @@ def webhook(request):
         payload = json.loads(request.body)
     except ValueError:
         return HttpResponse(status=400)
+    for report in whatsapp.statuses(payload):  # delivered, read, or failed after Meta accepted it
+        whatsapp.record_status(report)
     for message in whatsapp.incoming(payload, request.headers.get("X-Webhook-Event", "")):
         if not cache.add(f"wa-seen:{message['id']}", 1, SEEN_FOR):
             continue  # already handled: Meta sent it again

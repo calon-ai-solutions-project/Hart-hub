@@ -262,3 +262,49 @@ class KapsoTests(TestCase):
                                       HTTP_X_HUB_SIGNATURE_256="sha256=abc")
         self.assertEqual(meta_style.status_code, 403)
         self.assertFalse(Customer.objects.exists())
+
+
+@override_settings(**WA)
+class PhotoAndDeliveryTests(TestCase):
+    def test_the_car_photo_sent_is_the_full_jpeg_never_the_webp_thumbnail(self):
+        from apps.listings.models import ListingPhoto
+
+        from .test_journey import car
+
+        listing = car(1)
+        ListingPhoto.objects.create(listing=listing, position=1, source_url="https://img.test/1.webp",
+                                    image="listings/x/01.webp", thumbnail="listings/x/thumbs/01.webp")
+        ListingPhoto.objects.create(listing=listing, position=2, source_url="https://img.test/2.jpg",
+                                    image="listings/x/02.jpg", thumbnail="listings/x/thumbs/02.webp")
+        url = engine.first_photo_url(listing)
+        self.assertRegex(url, r"^https://hub\.example/api/public/cars/[\w-]+/photos/2$")  # no ?size=thumb
+        ListingPhoto.objects.filter(position=2).delete()
+        self.assertEqual(engine.first_photo_url(listing), "")  # WebP only: the car goes as text
+
+    def report(self, wamid, status, errors=None):
+        payload = call()
+        value = payload["entry"][0]["changes"][0]["value"]
+        value["messages"] = []
+        value["statuses"] = [{"id": wamid, "status": status, "recipient_id": "447700900321",
+                              **({"errors": errors} if errors else {})}]
+        body = json.dumps(payload).encode()
+        signature = "sha256=" + hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+        return self.client.post("/api/whatsapp/webhook", body, content_type="application/json",
+                                HTTP_X_HUB_SIGNATURE_256=signature)
+
+    def test_meta_reports_delivered_read_and_failed(self):
+        customer = Customer.objects.create(phone=TEST_PHONE)
+        enquiry = Enquiry.objects.create(customer=customer, channel="whatsapp", intent="car_enquiry", step="options_sent")
+        ok = EnquiryMessage.objects.create(enquiry=enquiry, direction="out", sender="bot", body="hi",
+                                           external_id="wamid.ok", delivery="sent")
+        photo = EnquiryMessage.objects.create(enquiry=enquiry, direction="out", sender="bot", body="1️⃣ car",
+                                              external_id="wamid.photo", delivery="sent")
+        self.report("wamid.ok", "read")
+        self.report("wamid.ok", "delivered")  # arrives late: never moves a message backwards
+        self.report("wamid.photo", "failed", [{"code": 131053, "title": "Media upload error"}])
+        ok.refresh_from_db()
+        photo.refresh_from_db()
+        self.assertEqual((ok.delivery, photo.delivery), ("read", "failed"))
+        event = Event.objects.get(type="whatsapp.send_failed")
+        self.assertEqual(event.payload["error"], "131053 Media upload error")
+        self.assertFalse(Customer.objects.exclude(pk=customer.pk).exists())  # a report is never a customer message

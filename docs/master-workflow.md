@@ -275,8 +275,8 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
    a 30-example eval set: `python manage.py eval_intent`). Car enquiry or finance → the chatbot. A plain
    "hi" / "hello" (below `enquiry_min_confidence`, 0.6) → **no instant reply**: the Hub waits
    `enquiry_greeting_wait_seconds` (60). If the customer says more in that time, that message is answered
-   straight away. If not, the Hub asks "Are you looking to buy a car? Or is it something else we can help
-   with, like a car you've already seen, an MOT or a service?" Yes → the chatbot's questions; no, or
+   straight away. If not, the Hub asks "Are you looking to buy a car? 🚗" (the bot only sells
+   cars, so it offers nothing else). Yes → the chatbot's questions; no, or
    other business → a person; unclear twice → a person. Other business (MOT, viewing, test drive, complaint) →
    "One of our team will reply shortly" and "Needs a person". Personal → no reply and **nothing stored**.
 2. **Conversational chatbot (15 Oct 2026, default `enquiry_collect_by` = `chat`):** a natural WhatsApp

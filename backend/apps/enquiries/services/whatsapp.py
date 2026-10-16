@@ -133,6 +133,42 @@ def incoming(payload, event=""):
     return messages
 
 
+# Meta's reports on a message we sent, in order; a report never moves a message backwards
+PROGRESS = {"sent": 1, "delivered": 2, "read": 3, "failed": 4}
+
+
+def statuses(payload):
+    """Meta's delivery reports in a webhook call: [{"id" (wamid), "status", "error"}]. Meta accepts a message
+    first and reports later whether it reached the phone; a photo it could not use is only reported here."""
+    found = []
+    for entry in (payload or {}).get("entry") or []:
+        for change in entry.get("changes") or []:
+            value = change.get("value") or {}
+            if (value.get("metadata") or {}).get("phone_number_id") != settings.WHATSAPP_PHONE_NUMBER_ID:
+                continue
+            for status in value.get("statuses") or []:
+                if status.get("id") and status.get("status") in PROGRESS:
+                    error = (status.get("errors") or [{}])[0]
+                    found.append({"id": status["id"], "status": status["status"],
+                                  "error": f"{error.get('code', '')} {error.get('title') or error.get('message') or ''}"
+                                  .strip()[:200]})
+    return found
+
+
+def record_status(report):
+    """Save one delivery report on the message it is about."""
+    from ..models import EnquiryMessage
+
+    message = EnquiryMessage.objects.filter(external_id=report["id"]).select_related("enquiry").first()
+    if message is None or PROGRESS.get(message.delivery, 0) >= PROGRESS[report["status"]]:
+        return
+    EnquiryMessage.objects.filter(pk=message.pk).update(delivery=report["status"])
+    if report["status"] == "failed":
+        logger.warning("WhatsApp could not deliver a message in enquiry %s: %s", message.enquiry_id, report["error"])
+        emit_event("whatsapp.send_failed", {"enquiry_id": str(message.enquiry_id), "message_id": str(message.id),
+                                            "error": report["error"], "reported_by": "meta"})
+
+
 def send(message):
     """Deliver one saved Hub message. Records the outcome on the message; never raises."""
     from ..models import EnquiryMessage

@@ -91,6 +91,7 @@
 .sim-pill.off i { background: var(--bad); }
 /* delivery marks on the Hub's messages */
 .wa-tick { font-weight: 700; }
-.wa-tick.sent { color: #53bdeb; }
+.wa-tick.sent, .wa-tick.delivered { color: var(--faint); }
+.wa-tick.read { color: #53bdeb; }
 .wa-tick.failed { color: var(--bad); }
 .wa-tick.skipped { color: var(--faint); }

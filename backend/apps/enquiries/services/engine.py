@@ -210,7 +210,7 @@ def wait_then_ask_purpose(enquiry_id):
 
 
 def ask_purpose(enquiry_id, now=None):
-    """The minute is up. Ask "are you looking to buy a car, or something else?" if nothing has been said since
+    """The minute is up. Ask "are you looking to buy a car?" if nothing has been said since
     the greeting and the Hub has not replied yet."""
     now = now or timezone.now()
     wait = timedelta(seconds=int(get_setting("enquiry_greeting_wait_seconds")))
@@ -553,12 +553,16 @@ def prepare_options(enquiry_id):
             move(enquiry, Enquiry.Step.AWAITING_APPROVAL, str(e))
 
 
+WHATSAPP_IMAGES = (".jpg", ".jpeg", ".png")  # WhatsApp image messages take JPEG or PNG only, never WebP
+
+
 def first_photo_url(listing):
-    """The car's first photo, from the public page's address (where photos are stored names the platform)."""
-    position = listing.photos.exclude(image="").order_by("position").values_list("position", flat=True).first()
-    if position is None:
-        return ""
-    return f"{settings.PUBLIC_SITE_URL}/api/public/cars/{link_for(listing).token}/photos/{position}?size=thumb"
+    """The car's first full-size JPEG or PNG photo, from the public page's address (where photos are stored names
+    the platform). Not the thumbnail: thumbnails are WebP, which WhatsApp drops without telling the sender."""
+    for position, name in listing.photos.exclude(image="").order_by("position").values_list("position", "image"):
+        if name.lower().endswith(WHATSAPP_IMAGES):
+            return f"{settings.PUBLIC_SITE_URL}/api/public/cars/{link_for(listing).token}/photos/{position}"
+    return ""
 
 
 def send_options(enquiry, user=None, now=None):

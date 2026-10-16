@@ -26,8 +26,7 @@ QUESTIONS = {
 }
 
 
-PURPOSE = ("Are you looking to buy a car? 🚗 Or is it something else we can help with, like a car you've "
-           "already seen, an MOT or a service?")
+PURPOSE = "Are you looking to buy a car? 🚗"
 
 
 def purpose(first=True):

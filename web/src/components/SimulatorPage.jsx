@@ -65,7 +65,13 @@ function Rich({ text }) {
 }
 
 // how a message the Hub sent got on with WhatsApp
-const DELIVERY = { sent: ["✓", "Sent"], failed: ["!", "Not delivered"], skipped: ["–", "Not sent (not a test number)"] };
+const DELIVERY = {
+  sent: ["✓", "Sent"],
+  delivered: ["✓✓", "Delivered"],
+  read: ["✓✓", "Read"],
+  failed: ["!", "Not delivered"],
+  skipped: ["–", "Not sent (not a test number)"],
+};
 
 /** The customer's side of the chat. In the simulator staff type as the customer; on real WhatsApp it is read only. */
 function Phone({ phone, onActivity, readOnly, live }) {
