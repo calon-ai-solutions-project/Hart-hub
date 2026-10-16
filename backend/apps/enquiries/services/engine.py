@@ -148,12 +148,8 @@ def handle_inbound(phone, text, *, channel="simulator", business_number="", now=
             move(enquiry, Enquiry.Step.NEEDS_PERSON, "Not a car-buying enquiry")
             replies.append(say(enquiry, texts.person_will_reply()))
         elif by_form and intent in (Enquiry.Intent.CAR, Enquiry.Intent.FINANCE):
-            enquiry.form_token, enquiry.form_sent_at = secrets.token_urlsafe(12), now
-            move(enquiry, Enquiry.Step.FORM_SENT)
-            replies.append(say(enquiry, texts.form_link(form_url(enquiry))))
-        elif by_form:
-            move(enquiry, Enquiry.Step.NEEDS_PERSON, "The Hub was not sure what this is")
-        else:  # a car enquiry, or just "hi": the chatbot asks what they are looking for
+            replies.append(send_form_link(enquiry, now))
+        else:  # just "hi" (or, with the chat setting, a car enquiry): the chatbot finds out what they want
             move(enquiry, Enquiry.Step.CHATTING)
     if enquiry.step == Enquiry.Step.CHATTING and intent == Enquiry.Intent.UNSURE:
         # just "hi": give them a minute to say more; if they don't, ask what they're messaging about
@@ -240,8 +236,47 @@ def customer_texts(messages):
     return [m.body for m in messages if m.direction == EnquiryMessage.Direction.IN]
 
 
+def send_form_link(enquiry, now=None, first=True):
+    """They want to buy a car: send the one-page form (a new link each time)."""
+    enquiry.form_token, enquiry.form_sent_at = secrets.token_urlsafe(12), now or timezone.now()
+    enquiry.form_submitted_at, enquiry.nudged = None, False
+    move(enquiry, Enquiry.Step.FORM_SENT)
+    return say(enquiry, texts.form_link(form_url(enquiry), first=first))
+
+
+def form_chat(enquiry):
+    """With the form: the chat only finds out whether they want to buy a car. Yes -> the form link; another
+    reason -> a person; only hellos -> "are you looking to buy a car?" (twice at most)."""
+    messages = list(enquiry.messages.all())
+    first = not any(m.direction == EnquiryMessage.Direction.OUT for m in messages)
+    asked = list(enquiry.asked)
+    intent, found, wants_person, how = conversation.understand(messages, "")
+    text = messages[-1].body if messages else ""
+    if wants_person or intent == "other_business":
+        move(enquiry, Enquiry.Step.NEEDS_PERSON,
+             "Asked to speak to a person" if wants_person else "Not a car-buying enquiry")
+        return [say(enquiry, texts.person_will_reply())]
+    buying = intent == "car_enquiry" or bool(found) or ("purpose" in asked and conversation.said_yes(text))
+    if buying:
+        if enquiry.intent == Enquiry.Intent.UNSURE:
+            enquiry.intent, enquiry.intent_by = Enquiry.Intent.CAR, how
+        return [send_form_link(enquiry, first=first)]
+    if intent == "personal" and "purpose" not in asked:
+        return []  # not for the business: no reply
+    if "purpose" in asked and (conversation.said_no(text) or asked.count("purpose") >= 2):
+        move(enquiry, Enquiry.Step.NEEDS_PERSON, "Not looking to buy a car" if conversation.said_no(text)
+             else "Did not say what they're messaging about")
+        return [say(enquiry, texts.person_will_reply())]
+    enquiry.asked = asked + ["purpose"]
+    enquiry.save()
+    return [say(enquiry, texts.purpose(first=first))]
+
+
 def chat(enquiry):
-    """The chatbot's turn: conversational when AI replies are on, else the scripted questions."""
+    """The chatbot's turn: with the form, only "do you want to buy a car?"; otherwise conversational when AI
+    replies are on, else the scripted questions."""
+    if get_setting("enquiry_collect_by") == "form":
+        return form_chat(enquiry)
     if ai_replies():
         try:
             return ai_chat(enquiry)
@@ -459,6 +494,7 @@ def submit_form(enquiry, answers, now=None):
 def save_request(enquiry, answers, now):
     """What the customer wants, from the form or the chat -> a saved requirement. Returns the thank-you."""
     answers = {name: str(answers.get(name) or "").strip()[:200] for name in FORM_FIELDS}
+    enquiry.answers = {**enquiry.answers, **{name: value for name, value in answers.items() if value}}
     requirement = Requirement(channel=enquiry.channel)
     fields = parse.from_form(answers)
     if not fields.get("make"):  # "SUV" or "family car" is not a model: search by budget, keep their words in notes
@@ -562,7 +598,9 @@ def prepare_options(enquiry_id):
         try:
             send_options(enquiry)
         except CannotSend as e:
-            move(enquiry, Enquiry.Step.AWAITING_APPROVAL, str(e))
+            enquiry.refresh_from_db()
+            if enquiry.step == Enquiry.Step.AWAITING_APPROVAL:
+                move(enquiry, Enquiry.Step.NEEDS_PERSON, f"The options could not be sent: {e}")
 
 
 WHATSAPP_IMAGES = (".jpg", ".jpeg", ".png")  # WhatsApp image messages take JPEG or PNG only, never WebP
@@ -591,6 +629,12 @@ def offer_another_search(enquiry):
         return
     enquiry.asked = list(enquiry.asked) + ["retry"]
     enquiry.quotes_tried, enquiry.nudged = 0, False
+    if get_setting("enquiry_collect_by") == "form":
+        searched = texts.noted({name: enquiry.answers.get(name) for name in ("make_model", "monthly_budget", "gearbox")})
+        enquiry.form_token, enquiry.form_sent_at, enquiry.form_submitted_at = secrets.token_urlsafe(12), timezone.now(), None
+        move(enquiry, Enquiry.Step.FORM_SENT)
+        say(enquiry, texts.no_cars_form(searched, form_url(enquiry)))
+        return
     move(enquiry, Enquiry.Step.CHATTING)
     say(enquiry, texts.no_cars(enquiry.answers))
 

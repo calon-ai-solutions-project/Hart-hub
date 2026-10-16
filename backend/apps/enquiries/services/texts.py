@@ -75,9 +75,18 @@ def person_will_reply():
     return "Thanks for your message 👍 One of our team will reply to you here shortly."
 
 
-def form_link(url):
-    return ("Hi, thanks for getting in touch! 😊 So we can find exactly the right car for you, please fill in this "
-            f"quick form (it takes about 1 minute):\n{url}")
+def form_link(url, first=True):
+    opening = "Hi, thanks for getting in touch! 😊" if first else "Great, we can help with that 👍"
+    return (f"{opening} So we can find exactly the right car for you, please fill in this quick form (it takes "
+            f"about 1 minute):\n{url}")
+
+
+def no_cars_form(searched, url):
+    """No car could be quoted for the form's answers: a new form link to try another car or budget."""
+    what = f"a match for {searched}" if searched else "a car that matches"
+    return (f"Sorry, we couldn't find {what} that we can offer on finance right now 😕\n\n"
+            "Would you like to try a different car, or a different monthly budget or deposit? Fill in the form "
+            f"again with what you'd like and I'll search again:\n{url}")
 
 
 def thanks(answers=None):

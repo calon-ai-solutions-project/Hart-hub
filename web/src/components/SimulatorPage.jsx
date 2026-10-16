@@ -207,7 +207,6 @@ function ago(iso) {
 // the customer's journey, in order; a step is done once the enquiry has moved past it
 const AFTER_DETAILS = [
   ["quoting", "Quoting"],
-  ["awaiting_approval", "Approval"],
   ["options_sent", "Options sent"],
   ["handed_over", "Car chosen"],
 ];
@@ -232,7 +231,8 @@ function Ends({ at }) {
 
 function Journey({ step, by }) {
   const steps = JOURNEY[by] || JOURNEY.chat;
-  const at = steps.findIndex(([key]) => key === step);
+  // options are sent as soon as they are quoted: the moment in between still shows as quoting
+  const at = steps.findIndex(([key]) => key === (step === "awaiting_approval" ? "quoting" : step));
   if (at < 0) return null;
   const finished = at === steps.length - 1; // the customer chose a car: every step is done
   return (
@@ -297,24 +297,9 @@ function EnquiryList({ list, selected, onSelect, search, setSearch }) {
   );
 }
 
-/** One enquiry: the journey, what the customer wants, the quoted cars and approval. Replies are sent from
- *  WhatsApp on the salesperson's phone, not from here. */
-function EnquiryDetail({ detail, user, onChange }) {
-  const [problem, setProblem] = useState("");
-  const [working, setWorking] = useState(false);
-
-  async function approve() {
-    setWorking(true);
-    setProblem("");
-    try {
-      onChange(await sim.approve(detail.id));
-    } catch (error) {
-      setProblem(error.message);
-    } finally {
-      setWorking(false);
-    }
-  }
-
+/** One enquiry: the journey, what the customer wants and the quoted cars, which are sent automatically.
+ *  Replies are sent from WhatsApp on the salesperson's phone, not from here. */
+function EnquiryDetail({ detail, user }) {
   if (!detail) {
     return (
       <section className="wa-detail wa-detail-empty">
@@ -476,20 +461,6 @@ function EnquiryDetail({ detail, user, onChange }) {
         </section>
       )}
 
-      {detail.step === "awaiting_approval" && detail.can_act && (
-        <div className="approve-bar">
-          <div>
-            <b>
-              {detail.options.length} car{detail.options.length === 1 ? "" : "s"} ready to send
-            </b>
-            <span>Nothing has been sent to the customer yet.</span>
-          </div>
-          <button type="button" className="btn primary" disabled={working} onClick={approve}>
-            {working ? <span className="spinner" /> : null} Approve &amp; send
-          </button>
-        </div>
-      )}
-      {problem && <div className="login-error">{problem}</div>}
     </section>
   );
 }
@@ -597,7 +568,7 @@ export default function SimulatorPage({ user, onSignOut }) {
       : ["off", "WhatsApp not connected"];
 
   const QUEUES = [
-    ["bot", "Bot handling", "Chatting, quoting and options"],
+    ["bot", "Bot handling", "Form, quoting and options"],
     ["person", "Needs a person", "MOTs, viewings, unsure"],
     ["chosen", "Chosen a car", "Hand-over to sales"],
   ];
@@ -662,7 +633,7 @@ export default function SimulatorPage({ user, onSignOut }) {
 
         <div className="wa-body">
           <EnquiryList list={list} selected={selected} onSelect={open} search={search} setSearch={setSearch} />
-          <EnquiryDetail detail={detail} user={user} onChange={setDetail} />
+          <EnquiryDetail detail={detail} user={user} />
           <aside className="wa-phone" aria-label="Customer's WhatsApp">
             <div className="wa-phone-head">
               <span>Conversation</span>

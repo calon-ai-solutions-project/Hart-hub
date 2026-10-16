@@ -4,7 +4,7 @@ import SideNav from "./SideNav.jsx";
 const SECTIONS = {
   chat: { href: "#chat", title: "Stock chat", text: "Find the best live cars for a customer and get Codeweavers quotes." },
   whatsapp: { href: "#whatsapp", title: "WhatsApp",
-              text: "Customer enquiries: form link, quoted options, approval and hand-over." },
+              text: "Customer enquiries: form link, quoted options sent automatically, and hand-over." },
 };
 
 /** The dashboard after sign-in. Its reports are still being built, so for now it is a clean welcome page

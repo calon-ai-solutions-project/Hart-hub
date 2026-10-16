@@ -27,6 +27,10 @@ def ai(reply="", intent="car_enquiry", ready=False, wants_person=False, **fields
 class ConversationalTests(TestCase):
     def setUp(self):
         cache.clear()
+        from apps.core.models import Setting
+
+        Setting.objects.create(key="enquiry_collect_by", value="chat")  # the bot asks the questions itself
+        Setting.objects.create(key="enquiry_auto_send", value=False)  # a person approves
         staff = get_user_model().objects.create_user("james@example.com", "a-long-test-password")
         self.api = APIClient()
         self.api.force_authenticate(staff)

@@ -41,6 +41,7 @@ class JourneyTests(TestCase):
         self.api.force_authenticate(self.staff)
         self.cars = [car(n) for n in range(1, 9)]
         Setting.objects.create(key="enquiry_collect_by", value="form")  # the chatbot has its own tests below
+        Setting.objects.create(key="enquiry_auto_send", value=False)  # these tests approve; AutoSendTests do not
         # the job runs inline instead of on a thread, and Codeweavers is faked
         self.inline = mock.patch.object(engine, "start_preparing", side_effect=engine.prepare_options)
         self.inline.start()
@@ -76,9 +77,26 @@ class JourneyTests(TestCase):
         row = self.api.get("/api/sim/enquiries?tab=person").json()["enquiries"][0]
         self.assertEqual(row["last_message"]["direction"], "out")
 
-    def test_with_the_form_unsure_messages_wait_for_a_person(self):
-        with mock.patch.object(engine, "classify", return_value=("unsure", 0.4, "ai")):
+    def test_with_the_form_a_hello_is_asked_whether_they_want_a_car_then_gets_the_form(self):
+        with mock.patch.object(engine, "classify", return_value=("unsure", 0.4, "ai")), \
+                mock.patch.object(engine, "wait_then_ask_purpose"):
             self.assertEqual(self.inbound("hi")["replies"], [])
+        enquiry = Enquiry.objects.get()
+        self.assertEqual(enquiry.step, "chatting")
+        engine.ask_purpose(enquiry.id, now=enquiry.last_inbound_at + timedelta(seconds=61))
+        reply = self.inbound("yes please")["replies"][0]["body"]
+        enquiry.refresh_from_db()
+        self.assertEqual(enquiry.step, "form_sent")
+        self.assertTrue(reply.startswith("Great, we can help with that 👍"), reply)
+        self.assertIn(f"https://hub.example/f/{enquiry.form_token}", reply)
+
+    def test_with_the_form_no_to_buying_goes_to_a_person(self):
+        with mock.patch.object(engine, "classify", return_value=("unsure", 0.4, "ai")), \
+                mock.patch.object(engine, "wait_then_ask_purpose"):
+            self.inbound("hi")
+        enquiry = Enquiry.objects.get()
+        engine.ask_purpose(enquiry.id, now=enquiry.last_inbound_at + timedelta(seconds=61))
+        self.assertIn("One of our team will reply", self.inbound("no thanks")["replies"][0]["body"])
         self.assertEqual(Enquiry.objects.get().step, "needs_person")
 
     def test_car_enquiry_gets_the_form_link(self):
@@ -158,17 +176,24 @@ class JourneyTests(TestCase):
         self.assertEqual(self.fill_form(enquiry).json()["already"], True)
         self.assertEqual(enquiry.options.count(), 5)
 
-    def test_nothing_quotable_tells_the_customer_and_asks_for_another_car(self):
+    def test_nothing_quotable_tells_the_customer_and_sends_a_new_form(self):
         self.codeweavers({c.registration: codeweavers.QuoteError("no") for c in self.cars})
         self.inbound("looking for a car")
         enquiry = Enquiry.objects.get()
+        first_token = enquiry.form_token
         self.fill_form(enquiry)
         enquiry.refresh_from_db()
-        self.assertEqual(enquiry.step, "chatting")
+        self.assertEqual(enquiry.step, "form_sent")
         self.assertEqual(Event.objects.get(type="enquiry.no_match").payload["tried"], 8)  # every car was tried
         last = enquiry.messages.filter(direction="out").order_by("created_at").last().body
-        self.assertTrue(last.startswith("Sorry, we couldn't find"), last)
+        self.assertTrue(last.startswith("Sorry, we couldn't find a match for *BMW 1 Series* · up to £500/month"), last)
+        self.assertIn(f"https://hub.example/f/{enquiry.form_token}", last)
+        self.assertNotEqual(enquiry.form_token, first_token)  # a fresh link; the old one is used up
         self.assertEqual(enquiry.options.count(), 0)  # no car options were sent
+        # a different budget on the new form searches again
+        self.codeweavers()
+        self.assertEqual(self.fill_form(enquiry, monthly_budget="£700").status_code, 200)
+        self.assertEqual(Enquiry.objects.get().step, "awaiting_approval")
 
     def test_quoting_stops_at_the_limit(self):
         Setting.objects.create(key="enquiry_max_quotes", value=3)
@@ -199,7 +224,7 @@ class JourneyTests(TestCase):
         self.assertNotIn(ended.title, json.dumps(detail["messages"]))
 
     def test_auto_send_when_the_owner_switches_it_on(self):
-        Setting.objects.create(key="enquiry_auto_send", value=True)
+        Setting.objects.filter(key="enquiry_auto_send").update(value=True)
         self.codeweavers()
         self.inbound("looking for a car")
         self.fill_form(Enquiry.objects.get())
@@ -218,10 +243,12 @@ class JourneyTests(TestCase):
 
 @override_settings(PUBLIC_SITE_URL="https://hub.example")
 class ChatbotTests(TestCase):
-    """The default: the chatbot asks what they want, one question at a time, then quotes. AI off: rules read it."""
+    """The chat setting: the chatbot asks what they want, one question at a time, then quotes. AI off: rules."""
 
     def setUp(self):
         cache.clear()
+        Setting.objects.create(key="enquiry_collect_by", value="chat")
+        Setting.objects.create(key="enquiry_auto_send", value=False)
         staff = get_user_model().objects.create_user("james@example.com", "a-long-test-password")
         self.api = APIClient()
         self.api.force_authenticate(staff)
@@ -380,6 +407,49 @@ class ChatbotTests(TestCase):
         self.assertIn("Customer: hi im looking for m4 btw car", ai.call_args.args[3])
         self.assertIn("*BMW M4* · up to £400/month", reply)
         self.assertNotIn("Ignore this", reply)
+
+
+@override_settings(PUBLIC_SITE_URL="https://hub.example")
+class AutoSendTests(TestCase):
+    """The default since 16 Oct 2026: a buyer gets the form; once it is filled in, the quoted cars go straight
+    to the customer, with no one approving them."""
+
+    def setUp(self):
+        cache.clear()
+        for n in range(1, 9):
+            car(n)
+        patch, _ = fake_codeweavers()
+        patch.start()
+        self.addCleanup(patch.stop)
+        inline = mock.patch.object(engine, "start_preparing", side_effect=engine.prepare_options)
+        inline.start()
+        self.addCleanup(inline.stop)
+        self.api = APIClient()
+        self.api.force_authenticate(get_user_model().objects.create_user("james@example.com", "a-long-password-1"))
+
+    def test_buyer_gets_the_form_then_the_quoted_cars_without_approval(self):
+        reply = self.api.post("/api/sim/inbound", {"phone": PHONE, "text": "I'm looking to buy a BMW"},
+                              format="json").json()["replies"][0]["body"]
+        enquiry = Enquiry.objects.get()
+        self.assertIn(f"https://hub.example/f/{enquiry.form_token}", reply)
+        answers = {"make_model": "BMW 1 Series", "gearbox": "Auto", "monthly_budget": "£500", "deposit": "£2,000"}
+        APIClient().post(f"/api/public/forms/{enquiry.form_token}", {"answers": answers}, format="json")
+        enquiry.refresh_from_db()
+        self.assertEqual(enquiry.step, "options_sent")  # sent straight away
+        self.assertIsNone(enquiry.approved_by)
+        bodies = [m.body for m in enquiry.messages.filter(direction="out").order_by("created_at")]
+        self.assertTrue(bodies[-1].startswith("Like one of these?"))
+        self.assertEqual(sum(b.startswith(("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣")) for b in bodies), 5)
+
+    def test_options_that_cannot_be_sent_go_to_a_person(self):
+        self.api.post("/api/sim/inbound", {"phone": PHONE, "text": "I'm looking to buy a BMW"}, format="json")
+        enquiry = Enquiry.objects.get()
+        Enquiry.objects.filter(pk=enquiry.pk).update(last_inbound_at=timezone.now() - timedelta(hours=25))
+        answers = {"make_model": "BMW 1 Series", "monthly_budget": "£500"}
+        APIClient().post(f"/api/public/forms/{enquiry.form_token}", {"answers": answers}, format="json")
+        enquiry.refresh_from_db()
+        self.assertEqual(enquiry.step, "needs_person")
+        self.assertIn("could not be sent", enquiry.needs_person_reason)
 
 
 class RulesTests(TestCase):

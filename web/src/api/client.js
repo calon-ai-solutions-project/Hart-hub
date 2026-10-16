@@ -62,7 +62,6 @@ export const sim = {
   clear: (phone) => api(`/api/sim/phones/${encodeURIComponent(phone)}`, { method: "DELETE" }),
   enquiries: (tab) => api(`/api/sim/enquiries?tab=${tab}`),
   enquiry: (id) => api(`/api/sim/enquiries/${id}`),
-  approve: (id) => api(`/api/sim/enquiries/${id}/approve`, { method: "POST" }),
 };
 
 export const quotes = {

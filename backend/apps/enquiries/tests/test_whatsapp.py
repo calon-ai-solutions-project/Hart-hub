@@ -79,7 +79,7 @@ class WhatsAppTests(TestCase):
         [sent] = self.meta.sent
         self.assertEqual(sent["url"], "https://graph.facebook.com/v21.0/111/messages")  # our number's id
         self.assertEqual((sent["to"], sent["type"], sent["auth"]), ("447700900321", "text", "Bearer EAA-test-token"))
-        self.assertIn("monthly budget", sent["text"]["body"])
+        self.assertIn("/f/", sent["text"]["body"])  # a buyer gets the form link
         reply = enquiry.messages.get(direction="out")
         self.assertEqual((reply.delivery, reply.external_id), ("sent", "wamid.out1"))
 

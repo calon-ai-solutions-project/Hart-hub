@@ -279,7 +279,7 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
    cars, so it offers nothing else). Yes → the chatbot's questions; no, or
    other business → a person; unclear twice → a person. Other business (MOT, viewing, test drive, complaint) →
    "One of our team will reply shortly" and "Needs a person". Personal → no reply and **nothing stored**.
-2. **Conversational chatbot (15 Oct 2026, default `enquiry_collect_by` = `chat`):** a natural WhatsApp
+2. **Conversational chatbot (15 Oct 2026; only when `enquiry_collect_by` = `chat`):** a natural WhatsApp
    conversation. One AI call per customer message (prompt `chat-v2`) reads the conversation, returns what
    the customer has asked for (car, monthly budget, deposit, gearbox, part-exchange) and writes the reply.
    It answers side questions, asks for one or two missing things at a time and never re-asks what it knows.
@@ -299,9 +299,11 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
    number ("2", "number one", "I'll go with the Audi") hands over to the salesperson and the bot goes
    quiet; a question ("which one has fewer miles?") is not taken as a choice. Option messages, quotes and
    every finance figure are still built by code from Codeweavers only.
-4. **One-time form link** (only when `enquiry_collect_by` = `form`; `/f/<code>`, `form_link_days` = 7):
-   make & model, colour, needed by, gearbox, monthly budget, deposit, part-exchange. One reminder of the
-   link.
+4. **Form link (the default since 16 Oct 2026, `enquiry_collect_by` = `form`):** as soon as the bot knows
+   the customer wants to buy a car (a car enquiry, or "yes" to "Are you looking to buy a car?"), it sends a
+   one-time form link (`/f/<code>`, `form_link_days` = 7): make & model, colour, needed by, gearbox,
+   monthly budget, deposit, part-exchange. One reminder of the link. No car found → the "Sorry, we couldn't
+   find…" message comes with a fresh form link to try another car or budget.
 5. **PCP only (14 Oct 2026):** only cars with a 48-month PCP quote are sent; no Hire Purchase.
    **Quote first, then send:** cars are tried at Codeweavers in ranked order with the form's deposit until
    `enquiry_options` (5) have a quote or `enquiry_max_quotes` (12) have been tried. Cars that cannot be
@@ -310,8 +312,12 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
    different car, or a different monthly budget or deposit?") and goes back to chatting; as soon as they
    change the car, budget, deposit or gearbox it searches and quotes again. After `enquiry_max_searches` (3)
    empty searches, or outside the 24-hour window, a person takes over.
-6. **Approval:** the options wait for **Approve & send** unless the owner turns on `enquiry_auto_send`.
-   Cars that ended meanwhile are dropped; outside the 24-hour window nothing is sent (template needed).
+6. **Sent automatically (16 Oct 2026, `enquiry_auto_send` = true):** once quoted, the options go straight to
+   the customer; there is no approve button in the portal any more. Cars that ended meanwhile are dropped;
+   if nothing can be sent (outside the 24-hour window, which needs a template, or every car ended) the
+   enquiry goes to "Needs a person". **Needs sign-off:** CLAUDE.md requires a person to approve before
+   anything reaches a customer unless an owner-set automation flag is on; Alom / Hart must agree to this
+   flag being on.
 7. **Messages built by code from the customer card and the Codeweavers figures:** an intro, one message per
    car (first photo, details, monthly payment exactly as quoted, deal end, "more photos" link to
    `/c/<code>`), and a closing line with the disclaimer.

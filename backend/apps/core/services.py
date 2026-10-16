@@ -18,9 +18,9 @@ DEFAULTS = {
     "enquiry_quiet_days": 14,  # after this long without messages, a new message starts a new journey
     "enquiry_options": 5,  # cars sent to a customer
     "enquiry_max_quotes": 12,  # cars tried at Codeweavers before giving up
-    "enquiry_auto_send": False,  # off: a person approves the options before they are sent
+    "enquiry_auto_send": True,  # on (16 Oct 2026): quoted options go straight to the customer, no approval step
     "form_link_days": 7,  # how long the form link works
-    "enquiry_collect_by": "chat",  # chat: the chatbot asks what they want; form: a link to the one-page form
+    "enquiry_collect_by": "form",  # form: a buyer gets the form link (16 Oct 2026); chat: the bot asks questions
     "enquiry_ai_replies": True,  # owner switch: the chatbot's replies are written by AI (checked by code)
     "enquiry_ai_max_replies": 20,
     "enquiry_max_searches": 3,  # searches with no quotable car before a person takes over  # after this many bot replies in one enquiry, a person takes over
