@@ -6,7 +6,22 @@ from django.conf import settings
 from django.db import IntegrityError
 from django.utils import timezone
 
-from ..models import CarLink, Listing
+from ..models import CarLink, Listing, ListingPhoto
+
+# Damage photos, as the platforms label them: Motorway "damage_scratches", BCA "damage", Carwow
+# "damage_generic", Manheim "damage: C Post R Scratched". Hart repairs damage in prep before the car is
+# handed over, so customers are only shown the car's normal photos; staff still see every photo.
+DAMAGE = r"damage"
+
+
+def is_damage(label):
+    return "damage" in (label or "").lower()
+
+
+def customer_photos(listing):
+    """The photos a customer may see: stored, not damage, not hidden by staff. In gallery order."""
+    return (ListingPhoto.objects.filter(listing=listing).exclude(image="").exclude(hidden=True)
+            .exclude(label__iregex=DAMAGE).order_by("position"))
 
 
 def link_for(listing):
@@ -54,7 +69,7 @@ def page(token, now=None):
     # photos are served through the page's own address: where they are stored names the platform
     base = f"/api/public/cars/{token}/photos"
     photos = [{"full": f"{base}/{p.position}", "thumb": f"{base}/{p.position}?size=thumb"}
-              for p in listing.photos.exclude(image="").order_by("position")]
+              for p in customer_photos(listing)]
     return {"available": True, "whatsapp": whatsapp, "car": card, "photos": photos,
             "disclaimer": get_setting("finance_disclaimer")}
 
@@ -64,7 +79,7 @@ def photo(token, position, thumb=False, now=None):
     link = CarLink.objects.select_related("listing").filter(token=token).first()
     if link is None or not is_available(link.listing, now):
         return None
-    found = link.listing.photos.filter(position=position).exclude(image="").first()
+    found = customer_photos(link.listing).filter(position=position).first()
     if found is None:
         return None
     field = found.thumbnail if thumb and found.thumbnail else found.image

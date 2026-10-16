@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { photos as photoApi } from "../api/client.js";
 import Icon from "./Icon.jsx";
 
 /** A native <dialog> that opens and closes with a prop. Clicking the backdrop closes it. */
@@ -55,5 +56,75 @@ export function Toast({ message }) {
     <div className={`toast${message ? " show" : ""}`} id="toast" role="status">
       {message}
     </div>
+  );
+}
+
+/** Every photo of a car, for staff, with which ones customers see. Damage photos (labelled by the platform)
+ *  are always hidden from customers, because Hart repairs damage before handover; any other photo can be
+ *  hidden or shown here. */
+export function PhotosDialog({ car, onClose }) {
+  const [list, setList] = useState(null);
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(null);
+
+  useEffect(() => {
+    if (!car) return;
+    setList(null);
+    setProblem("");
+    photoApi.list(car.id).then((data) => setList(data.photos)).catch((error) => setProblem(error.message));
+  }, [car]);
+
+  async function toggle(photo) {
+    setBusy(photo.position);
+    setProblem("");
+    try {
+      const saved = await photoApi.setHidden(car.id, photo.position, !photo.hidden);
+      setList((now) => now.map((p) => (p.position === saved.position ? saved : p)));
+    } catch (error) {
+      setProblem(error.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const shown = (list || []).filter((p) => p.shown_to_customers).length;
+  return (
+    <Modal open={Boolean(car)} onClose={onClose} className="photos-dialog" labelledBy="photos-title">
+      <header>
+        <div>
+          <h2 id="photos-title">{car?.title}</h2>
+          <p>
+            {list ? `${shown} of ${list.length} photos shown to customers.` : "Loading photos…"} Damage photos are
+            never shown: Hart repairs damage before handover.
+          </p>
+        </div>
+        <button type="button" className="close" aria-label="Close" onClick={onClose}>×</button>
+      </header>
+      {problem && <div className="login-error">{problem}</div>}
+      <div className="photos-grid">
+        {(list || []).map((photo) => (
+          <figure key={photo.position} className={photo.shown_to_customers ? "" : "off"}>
+            {photo.url ? <img src={photo.url} alt={photo.label || `Photo ${photo.position}`} loading="lazy" />
+                       : <div className="no-file">Not stored yet</div>}
+            <figcaption>
+              {photo.damage ? (
+                <span className="badge damage">Damage · hidden</span>
+              ) : photo.hidden ? (
+                <span className="badge hidden">Hidden</span>
+              ) : (
+                <span className="badge shown">Shown</span>
+              )}
+              {!photo.damage && (
+                <button type="button" className="btn ghost small" disabled={busy === photo.position}
+                        onClick={() => toggle(photo)}>
+                  {photo.hidden ? "Show" : "Hide"}
+                </button>
+              )}
+            </figcaption>
+            {photo.label && <small title={photo.label}>{photo.label.replaceAll("_", " ")}</small>}
+          </figure>
+        ))}
+      </div>
+    </Modal>
   );
 }

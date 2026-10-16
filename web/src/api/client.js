@@ -55,6 +55,13 @@ export const chats = {
   send: (id, body) => api(`${CHATS}/${id}/messages`, { method: "POST", body }),
 };
 
+// A car's photos for staff: all of them, and which ones customers see
+export const photos = {
+  list: (listingId) => api(`/api/listings/${listingId}/photos`),
+  setHidden: (listingId, position, hidden) =>
+    api(`/api/listings/${listingId}/photos/${position}`, { method: "PATCH", body: { hidden } }),
+};
+
 // The WhatsApp-style simulator and the enquiry dashboard (staff only)
 export const sim = {
   inbound: (phone, text) => api("/api/sim/inbound", { method: "POST", body: { phone, text } }),

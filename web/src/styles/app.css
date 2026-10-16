@@ -334,3 +334,28 @@ dialog::backdrop { background: rgba(12, 17, 29, .5); }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* the car photos dialog (staff): which photos customers see */
+.linkish { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline;
+           cursor: pointer; }
+dialog.photos-dialog { width: min(1040px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0;
+                       border: 0; border-radius: var(--radius); background: var(--surface); color: var(--text);
+                       box-shadow: var(--shadow-md); }
+dialog.photos-dialog::backdrop { background: rgba(15, 14, 12, .55); }
+.photos-dialog header { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; gap: 16px;
+                        padding: 18px 20px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.photos-dialog h2 { margin: 0; font-size: 18px; color: var(--ink); }
+.photos-dialog header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.photos-dialog .close { width: 34px; height: 34px; flex: none; border: 0; border-radius: 50%; background: var(--sunken);
+                        color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+.photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; padding: 18px 20px 22px; }
+.photos-grid figure { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.photos-grid img, .photos-grid .no-file { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px;
+                                          background: var(--sunken); display: grid; place-items: center; color: var(--faint); font-size: 12px; }
+.photos-grid figure.off img { opacity: .45; filter: grayscale(.6); }
+.photos-grid figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.photos-grid small { color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photos-grid .badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; }
+.photos-grid .badge.shown { background: var(--good-soft); color: var(--good); }
+.photos-grid .badge.hidden { background: var(--sunken); color: var(--muted); }
+.photos-grid .badge.damage { background: var(--bad-soft); color: var(--bad); }

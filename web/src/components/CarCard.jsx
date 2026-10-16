@@ -1,4 +1,7 @@
+import { useState } from "react";
+
 import { endsInfo, miles, money } from "../lib/format.js";
+import { PhotosDialog } from "./Dialogs.jsx";
 import Icon from "./Icon.jsx";
 
 const FLAGS = { over_budget: "Over budget", different_model: "Different model", different_colour: "Different colour" };
@@ -7,6 +10,7 @@ const FLAGS = { over_budget: "Over budget", different_model: "Different model", 
 export default function CarCard({ option, rank, picked, onToggle }) {
   const c = option.customer;
   const s = option.staff;
+  const [photosOpen, setPhotosOpen] = useState(false);
   const ends = endsInfo(c.ends_at);
   const specs = [
     ["Year", c.year],
@@ -93,10 +97,15 @@ export default function CarCard({ option, rank, picked, onToggle }) {
             Customer page ↗
           </a>
         )}
+        <button type="button" className="linkish" onClick={() => setPhotosOpen(true)}
+                title="Every photo, and which ones customers see">
+          Photos
+        </button>
         <a href={s.listing_url} target="_blank" rel="noopener noreferrer">
           View listing ↗
         </a>
       </div>
+      <PhotosDialog car={photosOpen ? { id: c.id, title: c.title } : null} onClose={() => setPhotosOpen(false)} />
     </article>
   );
 }

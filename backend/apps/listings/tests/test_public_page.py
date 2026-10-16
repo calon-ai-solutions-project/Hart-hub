@@ -80,3 +80,47 @@ class PublicCarPageTests(TestCase):
     def test_whatsapp_button_number_comes_from_settings(self):
         Setting.objects.create(key="public_whatsapp_number", value="+44 7700 900100")
         self.assertEqual(self.open(link_for(self.car).token).json()["whatsapp"], "447700900100")
+
+
+class DamagePhotoTests(TestCase):
+    """Hart repairs damage in prep, so customers only see the car's normal photos. Staff see every photo."""
+
+    def setUp(self):
+        cache.clear()
+        self.car = car()
+        for position, label in ((1, "exterior_front_driver"), (2, "damage_scratches"), (3, "Damage"),
+                                (4, "damage: C Post R Scratched"), (5, "interior_dashboard")):
+            ListingPhoto.objects.create(listing=self.car, position=position, label=label,
+                                        source_url=f"https://img.test/{position}.jpg",
+                                        image=f"listings/motorway/30000004/0{position}.jpg",
+                                        thumbnail=f"listings/motorway/30000004/thumbs/0{position}.webp")
+
+    def test_the_customer_page_never_shows_damage_photos(self):
+        token = link_for(self.car).token
+        photos = self.client.get(f"/api/public/cars/{token}").json()["photos"]
+        self.assertEqual([p["full"].rsplit("/", 1)[1] for p in photos], ["1", "5"])
+        self.assertEqual(self.client.get(f"/api/public/cars/{token}/photos/2").status_code, 404)  # not by address either
+
+    def test_the_whatsapp_photo_is_never_a_damage_photo(self):
+        from apps.enquiries.services.engine import first_photo_url
+
+        ListingPhoto.objects.filter(position=1).update(label="damage_dents")
+        self.assertTrue(first_photo_url(self.car).endswith("/photos/5"))
+
+    def test_staff_see_every_photo_and_can_hide_one(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+
+        api = APIClient()
+        api.force_authenticate(get_user_model().objects.create_user("james@example.com", "a-long-password-1"))
+        data = api.get(f"/api/listings/{self.car.id}/photos").json()
+        self.assertEqual(len(data["photos"]), 5)
+        self.assertEqual([p["damage"] for p in data["photos"]], [False, True, True, True, False])
+        self.assertEqual(data["shown"], 2)
+        self.assertTrue(data["photos"][0]["url"].startswith("/media/listings/"))
+        self.assertTrue(api.patch(f"/api/listings/{self.car.id}/photos/5", {"hidden": True}, format="json")
+                        .json()["hidden"])
+        token = link_for(self.car).token
+        self.assertEqual(len(self.client.get(f"/api/public/cars/{token}").json()["photos"]), 1)
+        api.patch(f"/api/listings/{self.car.id}/photos/5", {"hidden": False}, format="json")
+        self.assertEqual(len(self.client.get(f"/api/public/cars/{token}").json()["photos"]), 2)

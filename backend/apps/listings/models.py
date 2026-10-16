@@ -169,6 +169,8 @@ class ListingPhoto(UUIDModel):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="photos")
     position = models.PositiveSmallIntegerField()
     label = models.CharField(max_length=120, blank=True)
+    hidden = models.BooleanField(default=False, db_default=False,
+                                 help_text="Hidden from customers by staff. Damage photos are hidden anyway.")
     source_url = models.URLField(max_length=1000)
     image = models.FileField(upload_to=photo_path, max_length=255, blank=True)
     thumbnail = models.FileField(upload_to=thumbnail_path, max_length=255, blank=True)

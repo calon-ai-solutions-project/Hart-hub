@@ -327,6 +327,12 @@ status ("Live", with "test numbers only" until `WHATSAPP_REAL_CUSTOMERS` is on).
    The same day the closing message lost its "Finance is subject to status" disclaimer and the first-payment
    bonus line; this is part of the same sign-off.
 
+7b. **No damage photos for customers (16 Oct 2026):** Hart repairs damage in prep before handover, so
+   customers only see a car's normal photos, on WhatsApp and on the "more photos" page. Damage photos are
+   recognised from the platforms' own labels, kept on every photo: Motorway `damage_*`, BCA image type
+   "Damage", Carwow `damage_generic`, Manheim inspection photos (`insp-…`, labelled `damage: <caption>`).
+   Staff still see every photo: **Photos** on a car card shows which ones customers see, and any other photo
+   can be hidden or shown again there (`listing.photo_hidden` / `listing.photo_shown` events).
 8. **No quote documents:** quotes come from Codeweavers' API (figures, lender and terms, no PDF). Customers get
    the figures and representative example in the car messages; no PDF is shown to staff or sent to customers.
 9. **When a customer chooses a car** the dashboard shows an alert (banner, chime, browser tab title) for

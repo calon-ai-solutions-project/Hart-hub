@@ -214,6 +214,7 @@ def parse_listing(html, fragments, listing_id):
             photos.append({"id": m.group(1), "label": img.get("alt") or "photo"})
     car["photo_count"] = len(photos)
     car["photo_urls"] = " | ".join(IMAGE_HOST + p["id"] for p in photos)
+    car["photo_labels"] = " | ".join(p["label"] for p in photos)  # e.g. "damage_generic": kept from customers
     return car, photos
 
 

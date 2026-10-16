@@ -312,13 +312,16 @@ def flatten_detail(item, detail):
     for r in vd.get("reportUrls") or item.get("reportUrls") or []:
         car[f"{key_of(r.get('rel'))}"] = r.get("href")
 
-    photos = []
+    photos, labels = [], []
     for img in ld.get("images") or item.get("images") or []:
         uri = img.get("imageURI") or ""
         if "docId=" in uri:
             photos.append(re.sub(r"&?width=\d+", "", uri))
+            # BCA's own image type: "Damage" photos are kept from customers (Hart repairs damage in prep)
+            labels.append("damage" if (img.get("imageType") or "").lower() == "damage" else "photo")
     car["photo_count"] = len(photos)
     car["photo_urls"] = " | ".join(photos)
+    car["photo_labels"] = " | ".join(labels)
     return car, photos
 
 

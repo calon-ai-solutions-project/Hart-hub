@@ -262,10 +262,19 @@ def parse_vehicle(html, vehicle_id, url):
         src = a["imagehigh"].replace("http://", "https://")
         if src not in seen:
             seen.add(src)
-            photos.append({"url": src, "label": a.get("title") or "photo"})
+            photos.append({"url": src, "label": manheim_label(src, a.get("title"))})
     car["photo_count"] = len(photos)
     car["photo_urls"] = " | ".join(p["url"] for p in photos)
+    car["photo_labels"] = " | ".join(p["label"] for p in photos)
     return car, photos
+
+
+def manheim_label(url, title):
+    """Manheim's inspection photos ("insp-...", captioned "C Post R Scratched") show damage: kept from customers."""
+    title = " ".join(str(title or "").split()).replace("|", "/")[:100]
+    if url.rsplit("/", 1)[-1].startswith("insp-"):
+        return f"damage: {title}" if title else "damage"
+    return title or "photo"
 
 
 # ---------------------------------------------------------------- images

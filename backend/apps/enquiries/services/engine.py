@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from apps.ai.client import AiUnavailable, ai_enabled
 from apps.core.services import emit_event, get_setting
-from apps.listings.services.public import car_page_url, is_available, link_for
+from apps.listings.services.public import car_page_url, customer_photos, is_available, link_for
 from apps.matching.models import Requirement
 from apps.matching.services import parse, rerank, search
 from apps.matching.services.cards import customer_card, staff_card
@@ -642,7 +642,7 @@ def offer_another_search(enquiry):
 def first_photo_url(listing):
     """The car's first full-size JPEG or PNG photo, from the public page's address (where photos are stored names
     the platform). Not the thumbnail: thumbnails are WebP, which WhatsApp drops without telling the sender."""
-    for position, name in listing.photos.exclude(image="").order_by("position").values_list("position", "image"):
+    for position, name in customer_photos(listing).values_list("position", "image"):  # never a damage photo
         if name.lower().endswith(WHATSAPP_IMAGES):
             return f"{settings.PUBLIC_SITE_URL}/api/public/cars/{link_for(listing).token}/photos/{position}"
     return ""
