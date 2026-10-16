@@ -19,3 +19,10 @@ def whatsapp_inbound(phone, text, external_id):
 
     engine.handle_inbound(phone, text, channel="whatsapp", business_number=settings.WHATSAPP_BUSINESS_NUMBER,
                           external_id=external_id)
+
+
+@shared_task(name="enquiries.whatsapp_pump")
+def whatsapp_pump(enquiry_id):
+    from .services import whatsapp
+
+    whatsapp.pump(enquiry_id)

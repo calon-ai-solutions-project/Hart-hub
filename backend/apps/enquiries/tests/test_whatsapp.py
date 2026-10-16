@@ -51,7 +51,8 @@ class WhatsAppTests(TestCase):
         for target, name, value in ((whatsapp.requests, "post", self.meta.post),
                                     (webhook, "handle", lambda m: tasks.whatsapp_inbound(m["phone"], m["text"], m["id"])),
                                     (engine, "wait_then_ask_purpose", lambda *_: None),
-                                    (engine, "start_preparing", lambda *_: None)):
+                                    (engine, "start_preparing", lambda *_: None),
+                                    (whatsapp, "pump_later", lambda *_: None)):
             patch = mock.patch.object(target, name, value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -198,7 +199,8 @@ class KapsoTests(TestCase):
         self.meta = FakeMeta()
         for target, name, value in ((whatsapp.requests, "post", self.meta.post),
                                     (webhook, "handle", lambda m: tasks.whatsapp_inbound(m["phone"], m["text"], m["id"])),
-                                    (engine, "classify", lambda *_: ("car_enquiry", 0.9, "ai"))):
+                                    (engine, "classify", lambda *_: ("car_enquiry", 0.9, "ai")),
+                                    (whatsapp, "pump_later", lambda *_: None)):
             patch = mock.patch.object(target, name, value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -266,6 +268,38 @@ class KapsoTests(TestCase):
 
 @override_settings(**WA)
 class PhotoAndDeliveryTests(TestCase):
+    def setUp(self):
+        self.meta = FakeMeta()
+        for target, name, value in ((whatsapp.requests, "post", self.meta.post), (whatsapp, "pump_later", lambda *_: None)):
+            patch = mock.patch.object(target, name, value)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_messages_arrive_in_order_each_after_the_one_before(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        customer = Customer.objects.create(phone=TEST_PHONE)
+        enquiry = Enquiry.objects.create(customer=customer, channel="whatsapp", intent="car_enquiry", step="options_sent")
+        with self.captureOnCommitCallbacks(execute=True):
+            engine.say(enquiry, "intro")
+            engine.say(enquiry, "1️⃣ car", media_url="https://hub.example/api/public/cars/abc/photos/1")
+            engine.say(enquiry, "closing line")
+        self.assertEqual([m.get("text", m.get("image"))["body" if "text" in m else "caption"] for m in self.meta.sent],
+                         ["intro"])  # the photo waits until the intro has arrived
+        self.report("wamid.out1", "delivered")
+        self.assertEqual(self.meta.sent[-1]["type"], "image")
+        self.assertEqual(len(self.meta.sent), 2)  # the closing line waits for the photo
+        self.report("wamid.out2", "delivered")
+        self.assertEqual(self.meta.sent[-1]["text"]["body"], "closing line")
+        # no report at all: after the wait the next message goes anyway
+        with self.captureOnCommitCallbacks(execute=True):
+            engine.say(enquiry, "later")
+        EnquiryMessage.objects.filter(body="closing line").update(delivery_at=timezone.now() - timedelta(seconds=16))
+        whatsapp.pump(enquiry.id)
+        self.assertEqual(self.meta.sent[-1]["text"]["body"], "later")
+
     def test_the_car_photo_sent_is_the_full_jpeg_never_the_webp_thumbnail(self):
         from apps.listings.models import ListingPhoto
 

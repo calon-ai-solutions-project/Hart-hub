@@ -73,17 +73,15 @@ def say(enquiry, body, *, media_url="", sender=EnquiryMessage.Sender.BOT, user=N
     message = EnquiryMessage.objects.create(enquiry=enquiry, direction=EnquiryMessage.Direction.OUT, sender=sender,
                                             sent_by=user, body=body, media_url=media_url,
                                             created_at=next_time(enquiry))
-    if enquiry.channel == "whatsapp":
-        transaction.on_commit(lambda: deliver(message.id))
+    if enquiry.channel == "whatsapp":  # sent in order, each after the one before it has arrived
+        transaction.on_commit(lambda: deliver(enquiry.id))
     return message
 
 
-def deliver(message_id):
+def deliver(enquiry_id):
     from . import whatsapp
 
-    message = EnquiryMessage.objects.select_related("enquiry__customer").filter(pk=message_id).first()
-    if message is not None:
-        whatsapp.send(message)
+    whatsapp.pump(enquiry_id)
 
 
 def move(enquiry, step, reason="", actor=None):

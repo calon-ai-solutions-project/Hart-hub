@@ -98,6 +98,7 @@ class EnquiryMessage(UUIDModel):
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     external_id = models.CharField(max_length=128, blank=True, db_default="",
                                    help_text="WhatsApp's message id (wamid), once delivered to or received from Meta")
+    delivery_at = models.DateTimeField(null=True, blank=True, help_text="WhatsApp only: when it was handed to Meta")
     delivery = models.CharField(max_length=20, blank=True, db_default="",
                                 help_text="WhatsApp only: sent, delivered, read, failed, or skipped (not an allowed test "
                                           "number)")

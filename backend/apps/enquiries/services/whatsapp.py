@@ -16,9 +16,13 @@ text is never logged.
 import hashlib
 import hmac
 import logging
+import threading
+from datetime import timedelta
 
 import requests
 from django.conf import settings
+from django.db import connection, transaction
+from django.utils import timezone
 
 from apps.core.services import emit_event
 
@@ -167,6 +171,54 @@ def record_status(report):
         logger.warning("WhatsApp could not deliver a message in enquiry %s: %s", message.enquiry_id, report["error"])
         emit_event("whatsapp.send_failed", {"enquiry_id": str(message.enquiry_id), "message_id": str(message.id),
                                             "error": report["error"], "reported_by": "meta"})
+    pump(message.enquiry_id)  # it has arrived (or never will): the next message can go
+
+
+# ---------------------------------------------------------------- sending in order
+
+# WhatsApp does not keep the order of messages sent back to back: a photo takes longer to arrive than text, so
+# the closing line would overtake the last car. So each message is sent only once the one before it has been
+# delivered (Meta's report), or after this long without a report.
+WAIT_FOR_DELIVERY = timedelta(seconds=15)
+
+
+def pump(enquiry_id):
+    """Send the enquiry's waiting messages, oldest first, one at a time."""
+    from ..models import Enquiry, EnquiryMessage
+
+    while True:
+        with transaction.atomic():
+            if not Enquiry.objects.select_for_update().filter(pk=enquiry_id).exists():
+                return  # also stops two pumps sending for the same customer at once
+            out = EnquiryMessage.objects.filter(enquiry_id=enquiry_id, direction="out")
+            if out.filter(delivery="sent", delivery_at__gt=timezone.now() - WAIT_FOR_DELIVERY).exists():
+                return  # the previous message is on its way; its delivery report sends the next one
+            message = out.filter(delivery="").order_by("created_at").select_related("enquiry__customer").first()
+            if message is None:
+                return
+            on_its_way = send(message)
+        if on_its_way:
+            pump_later(enquiry_id)  # in case Meta's report never comes
+            return
+
+
+def pump_later(enquiry_id):
+    seconds = WAIT_FOR_DELIVERY.total_seconds() + 1
+    if settings.CELERY_TASK_ALWAYS_EAGER:  # no worker (local): a timer thread
+        timer = threading.Timer(seconds, _pump_on_thread, args=(enquiry_id,))
+        timer.daemon = True
+        timer.start()
+    else:
+        from ..tasks import whatsapp_pump
+
+        whatsapp_pump.apply_async(args=[str(enquiry_id)], countdown=seconds)
+
+
+def _pump_on_thread(enquiry_id):
+    try:
+        pump(enquiry_id)
+    finally:
+        connection.close()
 
 
 def send(message):
@@ -200,7 +252,8 @@ def send(message):
         emit_event("whatsapp.send_failed", {"enquiry_id": str(enquiry.id), "message_id": str(message.id),
                                             "error": str(e)[:200]})
         return False
-    EnquiryMessage.objects.filter(pk=message.pk).update(delivery="sent", external_id=wamid[:128])
+    EnquiryMessage.objects.filter(pk=message.pk).update(delivery="sent", external_id=wamid[:128],
+                                                        delivery_at=timezone.now())
     return True
 
 
