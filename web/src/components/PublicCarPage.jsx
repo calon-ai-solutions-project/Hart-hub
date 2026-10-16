@@ -110,7 +110,8 @@ function Gallery({ photos, title }) {
   );
 }
 
-/** The public "more photos" page a customer opens from WhatsApp. No login; customer fields only. */
+/** The public "more photos" page a customer opens from WhatsApp. No login; customer fields only.
+ *  No WhatsApp button: the customer is already in the WhatsApp chat and replies there. */
 export default function PublicCarPage({ token }) {
   const [data, setData] = useState(null);
   const [problem, setProblem] = useState("");
@@ -128,12 +129,6 @@ export default function PublicCarPage({ token }) {
   useEffect(() => {
     if (data?.car) document.title = `${data.car.title} · Hart Group`;
   }, [data]);
-
-  const reply =
-    data?.whatsapp &&
-    `https://wa.me/${data.whatsapp}?text=${encodeURIComponent(
-      data.car ? `Hi, I'm interested in the ${data.car.title}` : "Hi, I'd like to see some other cars",
-    )}`;
 
   const specs = data?.car
     ? [
@@ -183,11 +178,6 @@ export default function PublicCarPage({ token }) {
                     </div>
                   ))}
                 </dl>
-                {reply && (
-                  <a className="listing-cta" href={reply} target="_blank" rel="noopener noreferrer">
-                    Ask about this car on WhatsApp
-                  </a>
-                )}
                 <p className="public-fine">{data.disclaimer}</p>
               </section>
             </aside>
@@ -195,11 +185,6 @@ export default function PublicCarPage({ token }) {
         )}
       </main>
 
-      {reply && data?.car && (
-        <a className="public-reply mobile-only" href={reply} target="_blank" rel="noopener noreferrer">
-          Reply on WhatsApp
-        </a>
-      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 .public { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
 .public-top { background: var(--side); padding: 14px 16px; display: flex; justify-content: center; }
 .public-top img { height: 40px; width: auto; display: block; }
-.public-main { width: 100%; max-width: 720px; margin: 0 auto; padding: 16px 16px 96px; display: flex; flex-direction: column; gap: 16px; }
+.public-main { width: 100%; max-width: 720px; margin: 0 auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 16px; }
 
 .gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--sunken); border: 1px solid var(--line); }
 .gallery-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
